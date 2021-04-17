@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 
@@ -28,6 +29,38 @@ public struct CraBone
 {
     public int BoneHash;
     public CraTransformCurve Curve;
+
+    public CraBone(string boneName, CraTransformCurve curve)
+    {
+        if (CraSettings.BoneHashFunction == null)
+        {
+            throw new Exception("CraSettings.BoneHashFunction is not assigned! You need to assign a custom hash function!");
+        }
+
+        BoneHash = CraSettings.BoneHashFunction(boneName);
+        Curve = curve;
+    }
+}
+
+public struct CraMask
+{
+    public bool MaskChildren;
+    public HashSet<int> BoneHashes;
+
+    public CraMask(bool maskChildren, params string[] boneNames)
+    {
+        if (CraSettings.BoneHashFunction == null)
+        {
+            throw new Exception("CraSettings.BoneHashFunction is not assigned! You need to assign a custom hash function!");
+        }
+
+        BoneHashes = new HashSet<int>();
+        for (int i = 0; i < boneNames.Length; ++i)
+        {
+            BoneHashes.Add(CraSettings.BoneHashFunction(boneNames[i]));
+        }
+        MaskChildren = maskChildren;
+    }
 }
 
 public class CraCurve
@@ -174,11 +207,17 @@ public class CraClip
     public string Name;
     public float Fps { get; private set; } = -1f;    // -1 => not yet baked
     public int FrameCount { get; private set; } = 0;
-    public List<CraBone> Bones = new List<CraBone>();
+    public CraBone[] Bones;
 
 
     public void Bake(float fps)
     {
+        if (Bones == null)
+        {
+            Debug.LogError("Cannot bake empty clip!");
+            return;
+        }
+
         if (Fps > -1)
         {
             Debug.LogError("Cannot bake twice!");
@@ -188,12 +227,12 @@ public class CraClip
         FrameCount = 0;
         Fps = fps;
 
-        for (int i = 0; i < Bones.Count; ++i)
+        for (int i = 0; i < Bones.Length; ++i)
         {
             FrameCount = Mathf.Max(FrameCount, Bones[i].Curve.GetEstimatedFrameCount(Fps));
         }
 
-        for (int i = 0; i < Bones.Count; ++i)
+        for (int i = 0; i < Bones.Length; ++i)
         {
             Bones[i].Curve.Bake(Fps, FrameCount);
         }
@@ -202,43 +241,42 @@ public class CraClip
 
 public class CraPlayer
 {
-    public static Func<string, int> BoneHashFunction;
-
     public bool Looping = false;
-    public bool AnimationEnded { get; private set; }
-    CraClip Clip;
-    Dictionary<int, int> HashToClipBoneIdx = new Dictionary<int, int>();
-    int[] AssignedIndices;
-    Transform[] AssignedBones;
-    bool IsPlaying;
+    public bool Finished { get; private set; }
+    public Transform AssignedTo { get; private set; }
+    public CraClip Clip;
+    public Transform[] AssignedBones;
+    public int[] AssignedIndices;
+    public bool IsPlaying;
+    public float Playback = 0f;
+    Dictionary<int, int> HashToBoneIdx = new Dictionary<int, int>();
     float Duration = 0f;
-    float Playback = 0f;
 
     public void SetClip(CraClip clip)
     {
-        HashToClipBoneIdx.Clear();
-        for (int i = 0; i < clip.Bones.Count; ++i)
+        HashToBoneIdx.Clear();
+        for (int i = 0; i < clip.Bones.Length; ++i)
         {
-            HashToClipBoneIdx.Add(clip.Bones[i].BoneHash, i);
+            HashToBoneIdx.Add(clip.Bones[i].BoneHash, i);
         }
         Clip = clip;
         Duration = clip.FrameCount / clip.Fps;
     }
 
-    public void Assign(Transform root)
+    public void Assign(Transform root, CraMask? mask=null)
     {
-        if (BoneHashFunction == null)
+        if (CraSettings.BoneHashFunction == null)
         {
-            Debug.LogError("CraPlayer.BoneHashFunction is not assigned! You need to assign a custom hash function!");
-            return;
+            throw new Exception("CraSettings.BoneHashFunction is not assigned! You need to assign a custom hash function!");
         }
         if (Clip == null)
         {
             Debug.LogError($"Cannot assign Transform '{root.name}' to CraPlayer! No clip set!");
             return;
         }
-        AssignedBones = new Transform[Clip.Bones.Count];
-        AssignInternal(root);
+        AssignedBones = new Transform[Clip.Bones.Length];
+        AssignInternal(root, mask);
+        AssignedTo = root;
 
         // store assigned indices so we don't have to do a null
         // check for each bone for every single evaluation
@@ -250,8 +288,8 @@ public class CraPlayer
                 assignedIndices.Add(i);
             }
         }
-        AssignedIndices = assignedIndices.ToArray();
 
+        AssignedIndices = assignedIndices.ToArray();
         Evaluate(0f);
     }
 
@@ -268,8 +306,9 @@ public class CraPlayer
 
     public void Reset()
     {
-        AnimationEnded = false;
+        Finished = false;
         Playback = 0f;
+        IsPlaying = false;
     }
 
     public void Play()
@@ -289,23 +328,38 @@ public class CraPlayer
             if (!Looping)
             {
                 IsPlaying = false;
-                AnimationEnded = true;
+                Finished = true;
                 return;
             }
         }    
         Evaluate(Playback);
     }
 
-    void AssignInternal(Transform root)
+    void AssignInternal(Transform root, CraMask? mask = null)
     {
-        int boneHash = BoneHashFunction(root.name);
-        if (HashToClipBoneIdx.TryGetValue(boneHash, out int boneIdx))
+        int boneHash = CraSettings.BoneHashFunction(root.name);
+        if (HashToBoneIdx.TryGetValue(boneHash, out int boneIdx))
         {
-            AssignedBones[boneIdx] = root;
+            if (mask.HasValue && mask.Value.BoneHashes.Contains(boneHash))
+            {
+                if (mask.Value.MaskChildren)
+                {
+                    return;
+                }
+            }
+            else
+            {
+                AssignedBones[boneIdx] = root;
+            }
         }
         for (int i = 0; i < root.childCount; ++i)
         {
             AssignInternal(root.GetChild(i));
         }
     }
+}
+
+public static class CraSettings
+{
+    public static Func<string, int> BoneHashFunction;
 }
