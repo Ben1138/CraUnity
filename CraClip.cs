@@ -3,12 +3,12 @@ using System.Collections.Generic;
 using UnityEngine;
 
 
-public struct CraKey<T> : IComparable where T : struct
+public struct CraKey : IComparable 
 {
     public float Time;
-    public T Value;
+    public float Value;
 
-    public CraKey(float time, ref T value)
+    public CraKey(float time, float value)
     {
         Time = time;
         Value = value;
@@ -16,72 +16,43 @@ public struct CraKey<T> : IComparable where T : struct
 
     public int CompareTo(object obj)
     {
-        if (!(obj is CraKey<T>))
+        if (!(obj is CraKey))
         {
             throw new ArgumentException($"Cannot compare '{GetType()}' to {obj.GetType()}!");
         }
-        return (int)(Time * 100f - ((CraKey<T>)obj).Time * 100f);
+        return (int)(Time * 100f - ((CraKey)obj).Time * 100f);
     }
 }
 
 public struct CraBone
 {
-    public Transform Bone;
+    public int BoneHash;
     public CraTransformCurve Curve;
-    public bool Update;
-
-
 }
 
-public class CraTransformCurve
+public class CraCurve
 {
+    public List<CraKey> EditKeys = new List<CraKey>();
+    public float[] BakedFrames;
     public int FrameCount { get; private set; }
     public float Fps { get; private set; } = 30f;
 
-    public Vector3[] BakedPositionFrames = null;
-    public Quaternion[] BakedRotationFrames = null;
-
-    List<CraKey<Vector3>> EditPositionKeys;
-    List<CraKey<Quaternion>> EditRotationKeys;
-
-
-    public void AddPositionKey(float time, ref Vector3 value)
+    public int GetEstimatedFrameCount(float fps)
     {
-        if (BakedPositionFrames != null)
-        {
-            throw new Exception("Cannot change add position key after bake!");
-        }
-        EditPositionKeys.Add(new CraKey<Vector3>(time, ref value));
-    }
-
-    public void AddRotationKey(float time, ref Quaternion value)
-    {
-        if (BakedPositionFrames != null)
-        {
-            throw new Exception("Cannot change add rotation key after bake!");
-        }
-        EditRotationKeys.Add(new CraKey<Quaternion>(time, ref value));
-    }
-
-    public int GetEstimatedFrameCount()
-    {
-        float endTimePos = EditPositionKeys.Count > 0 ? EditPositionKeys[EditPositionKeys.Count - 1].Time : 0f;
-        float endTimeRot = EditRotationKeys.Count > 0 ? EditRotationKeys[EditRotationKeys.Count - 1].Time : 0f;
-        float endTime = Mathf.Max(endTimePos, endTimeRot);
-
-        float timeStep = 1f / Fps;
+        float endTime = EditKeys[EditKeys.Count - 1].Time;
+        float timeStep = 1f / fps;
         return Mathf.CeilToInt(endTime / timeStep);
     }
 
     public void Bake(float fps, int frameCount)
     {
-        if (EditPositionKeys.Count == 0 && EditRotationKeys.Count == 0)
+        if (EditKeys.Count == 0)
         {
             Debug.LogError("Cannot bake empty transform curve!");
             return;
         }
 
-        if (BakedPositionFrames != null)
+        if (BakedFrames != null)
         {
             Debug.LogError("Cannot bake twice!");
             return;
@@ -90,112 +61,125 @@ public class CraTransformCurve
         Fps = fps;
         FrameCount = frameCount;
 
-        EditPositionKeys.Sort();
-        EditRotationKeys.Sort();
+        BakedFrames = new float[FrameCount];
+        BakedFrames[0] = EditKeys[0].Value;
 
-        float endTimePos = EditPositionKeys.Count > 0 ? EditPositionKeys[EditPositionKeys.Count - 1].Time : 0f;
-        float endTimeRot = EditRotationKeys.Count > 0 ? EditRotationKeys[EditRotationKeys.Count - 1].Time : 0f;
+        float endTime = EditKeys[EditKeys.Count - 1].Time;
 
-        BakedPositionFrames = new Vector3[FrameCount];
-        BakedRotationFrames = new Quaternion[FrameCount];
-
-        BakedPositionFrames[0] = EditPositionKeys.Count > 0 ? EditPositionKeys[0].Value : Vector3.zero;
-        BakedRotationFrames[0] = EditRotationKeys.Count > 0 ? EditRotationKeys[0].Value : Quaternion.identity;
-
-        int lastPos = 0;
-        int lastRot = 0;
-        int nextPos = 0;
-        int nextRot = 0;
+        int lastIdx = 0;
+        int nextIdx = 0;
         float timeStep = 1f / Fps;
-        for (int i = 1; i < FrameCount - 1; ++i)
+        for (int i = 1; i < FrameCount; ++i)
         {
-            float timeNow  = timeStep * i;
+            float timeNow = timeStep * i;
 
             // Bake Positions
-            if (timeNow <= endTimePos)
+            if (timeNow <= endTime)
             {
-                for (float posTimeNext = EditPositionKeys[nextPos].Time; posTimeNext < timeNow;)
+                for (float posTimeNext = EditKeys[nextIdx].Time; posTimeNext < timeNow;)
                 {
-                    lastPos = nextPos++;
-                    posTimeNext = EditPositionKeys[nextPos].Time;
+                    lastIdx = nextIdx++;
+                    posTimeNext = EditKeys[nextIdx].Time;
                 }
-                float duration = EditPositionKeys[nextPos].Time - EditPositionKeys[lastPos].Time;
+                float duration = EditKeys[nextIdx].Time - EditKeys[lastIdx].Time;
                 Debug.Assert(duration > 0f);
-                float t = (timeNow - EditPositionKeys[lastPos].Time) / duration;
-                BakedPositionFrames[i] = Vector3.Lerp(EditPositionKeys[lastPos].Value, EditPositionKeys[nextPos].Value, t);
+                float t = (timeNow - EditKeys[lastIdx].Time) / duration;
+                BakedFrames[i] = Mathf.Lerp(EditKeys[lastIdx].Value, EditKeys[nextIdx].Value, t);
             }
             else
             {
-                BakedPositionFrames[i] = BakedPositionFrames[i - 1];
-            }
-
-            // Bake Rotations
-            if (timeNow <= endTimeRot)
-            {
-                for (float rotTimeNext = EditPositionKeys[nextPos].Time; rotTimeNext < timeNow;)
-                {
-                    lastRot = nextRot++;
-                    rotTimeNext = EditPositionKeys[nextRot].Time;
-                }
-                float duration = EditRotationKeys[nextRot].Time - EditRotationKeys[lastRot].Time;
-                Debug.Assert(duration > 0f);
-                float t = (timeNow - EditRotationKeys[lastRot].Time) / duration;
-                BakedRotationFrames[i] = Quaternion.Slerp(EditRotationKeys[lastRot].Value, EditRotationKeys[nextRot].Value, t);
-            }
-            else
-            {
-                BakedRotationFrames[i] = BakedRotationFrames[i - 1];
+                BakedFrames[i] = BakedFrames[i - 1];
             }
         }
 
-        EditPositionKeys.Clear();
-        EditRotationKeys.Clear();
+        EditKeys.Clear();
+    }
+}
+
+public class CraTransformCurve
+{
+    public int FrameCount { get; private set; }
+    public float Fps { get; private set; } = 30f;
+
+    // 0 : rot X
+    // 1 : rot Y
+    // 2 : rot Z
+    // 3 : rot W
+    // 4 : pos X
+    // 5 : pos Y
+    // 6 : pos Z
+    public CraCurve[] Curves = new CraCurve[7];
+
+    public Vector3[] BakedPositions;
+    public Quaternion[] BakedRotations;
+
+    public CraTransformCurve()
+    {
+        for (int i = 0; i < 7; ++i)
+        {
+            Curves[i] = new CraCurve();
+        }
+    }
+
+    public int GetEstimatedFrameCount(float fps)
+    {
+        int frameCount = 0;
+        for (int i = 0; i < 7; ++i)
+        {
+            frameCount = Mathf.Max(frameCount, Curves[i].GetEstimatedFrameCount(fps));
+        }
+        return frameCount;
+    }
+
+    public void Bake(float fps, int frameCount)
+    {
+        if (BakedPositions != null)
+        {
+            Debug.LogError("Cannot bake twice!");
+            return;
+        }
+
+        Fps = fps;
+        FrameCount = frameCount;
+
+        for (int i = 0; i < 7; ++i)
+        {
+            Curves[i].Bake(fps, frameCount);
+        }
+
+        BakedPositions = new Vector3[FrameCount];
+        BakedRotations = new Quaternion[FrameCount];
+
+        for (int i = 0; i < FrameCount; ++i)
+        {
+            BakedRotations[i].x = Curves[0].BakedFrames[i];
+            BakedRotations[i].y = Curves[1].BakedFrames[i];
+            BakedRotations[i].z = Curves[2].BakedFrames[i];
+            BakedRotations[i].w = Curves[3].BakedFrames[i];
+            BakedPositions[i].x = Curves[4].BakedFrames[i];
+            BakedPositions[i].y = Curves[5].BakedFrames[i];
+            BakedPositions[i].z = Curves[6].BakedFrames[i];
+        }
+
+        // remove redundant data
+        for (int i = 0; i < 7; ++i)
+        {
+            Curves[i].BakedFrames = null;
+        }
     }
 }
 
 public class CraClip
 {
-    public bool AnimationEnded { get; private set; }
+    public string Name;
+    public float Fps { get; private set; } = -1f;    // -1 => not yet baked
+    public int FrameCount { get; private set; } = 0;
+    public List<CraBone> Bones = new List<CraBone>();
 
-    List<CraBone> Bones;
-    float Fps = -1f;
-
-    int FrameCount = -1;
-    int FrameIdx = 0;
-
-    public void AddBone(CraBone bone)
-    {
-        if (bone.Bone == null)
-        {
-            Debug.LogError($"Cannot add bone with no Transform assigned!");
-            return;
-        }
-        if (bone.Curve == null)
-        {
-            Debug.LogWarning($"Added bone '{bone.Bone.name}' does not have a curve assigned!");
-        }
-
-        if (Fps == -1f && bone.Curve != null)
-        {
-            Fps = bone.Curve.Fps;
-        }
-
-        if (bone.Curve != null)
-        {
-            if (bone.Curve.Fps != Fps)
-            {
-                Debug.LogError($"Cannot add bone with a Transform Curve of '{bone.Curve.Fps}' Fps, while the clip uses '{Fps}' Fps!");
-                return;
-            }
-            FrameCount = Mathf.Max(FrameCount, bone.Curve.FrameCount);
-        }
-
-        Bones.Add(bone);
-    }
 
     public void Bake(float fps)
     {
-        if (FrameCount > -1)
+        if (Fps > -1)
         {
             Debug.LogError("Cannot bake twice!");
             return;
@@ -206,7 +190,7 @@ public class CraClip
 
         for (int i = 0; i < Bones.Count; ++i)
         {
-            FrameCount = Mathf.Max(FrameCount, Bones[i].Curve.GetEstimatedFrameCount());
+            FrameCount = Mathf.Max(FrameCount, Bones[i].Curve.GetEstimatedFrameCount(Fps));
         }
 
         for (int i = 0; i < Bones.Count; ++i)
@@ -214,36 +198,114 @@ public class CraClip
             Bones[i].Curve.Bake(Fps, FrameCount);
         }
     }
+}
 
-    public void AdvanceFrameLoop()
+public class CraPlayer
+{
+    public static Func<string, int> BoneHashFunction;
+
+    public bool Looping = false;
+    public bool AnimationEnded { get; private set; }
+    CraClip Clip;
+    Dictionary<int, int> HashToClipBoneIdx = new Dictionary<int, int>();
+    int[] AssignedIndices;
+    Transform[] AssignedBones;
+    bool IsPlaying;
+    float Duration = 0f;
+    float Playback = 0f;
+
+    public void SetClip(CraClip clip)
     {
-        FrameIdx = ++FrameIdx % FrameCount;
-        for (int i = 0; i < Bones.Count; ++i)
+        HashToClipBoneIdx.Clear();
+        for (int i = 0; i < clip.Bones.Count; ++i)
         {
-            Bones[i].Bone.position = Bones[i].Curve.BakedPositionFrames[FrameIdx];
-            Bones[i].Bone.rotation = Bones[i].Curve.BakedRotationFrames[FrameIdx];
+            HashToClipBoneIdx.Add(clip.Bones[i].BoneHash, i);
         }
+        Clip = clip;
+        Duration = clip.FrameCount / clip.Fps;
     }
 
-    public void AdvanceFrame()
+    public void Assign(Transform root)
     {
-        FrameIdx++;
-        if (FrameIdx >= FrameCount)
+        if (BoneHashFunction == null)
         {
-            FrameIdx = FrameCount - 1;
-            AnimationEnded = true;
+            Debug.LogError("CraPlayer.BoneHashFunction is not assigned! You need to assign a custom hash function!");
             return;
         }
-        for (int i = 0; i < Bones.Count; ++i)
+        if (Clip == null)
         {
-            Bones[i].Bone.position = Bones[i].Curve.BakedPositionFrames[FrameIdx];
-            Bones[i].Bone.rotation = Bones[i].Curve.BakedRotationFrames[FrameIdx];
+            Debug.LogError($"Cannot assign Transform '{root.name}' to CraPlayer! No clip set!");
+            return;
+        }
+        AssignedBones = new Transform[Clip.Bones.Count];
+        AssignInternal(root);
+
+        // store assigned indices so we don't have to do a null
+        // check for each bone for every single evaluation
+        List<int> assignedIndices = new List<int>();
+        for (int i = 0; i < AssignedBones.Length; ++i)
+        {
+            if (AssignedBones[i] != null)
+            {
+                assignedIndices.Add(i);
+            }
+        }
+        AssignedIndices = assignedIndices.ToArray();
+
+        Evaluate(0f);
+    }
+
+    public void Evaluate(float timePos)
+    {
+        int frameIdx = Mathf.FloorToInt(timePos * Clip.Fps);
+        for (int i = 0; i < AssignedIndices.Length; ++i)
+        {
+            int idx = AssignedIndices[i];
+            AssignedBones[idx].localPosition = Clip.Bones[idx].Curve.BakedPositions[frameIdx];
+            AssignedBones[idx].localRotation = Clip.Bones[idx].Curve.BakedRotations[frameIdx];
         }
     }
 
     public void Reset()
     {
         AnimationEnded = false;
-        FrameIdx = 0;
+        Playback = 0f;
+    }
+
+    public void Play()
+    {
+        Playback = 0f;
+        IsPlaying = true;
+    }
+
+    public void Update(float deltaTime)
+    {
+        if (!IsPlaying) return;
+
+        Playback += deltaTime;
+        if (Playback > Duration)
+        {
+            Playback = 0;
+            if (!Looping)
+            {
+                IsPlaying = false;
+                AnimationEnded = true;
+                return;
+            }
+        }    
+        Evaluate(Playback);
+    }
+
+    void AssignInternal(Transform root)
+    {
+        int boneHash = BoneHashFunction(root.name);
+        if (HashToClipBoneIdx.TryGetValue(boneHash, out int boneIdx))
+        {
+            AssignedBones[boneIdx] = root;
+        }
+        for (int i = 0; i < root.childCount; ++i)
+        {
+            AssignInternal(root.GetChild(i));
+        }
     }
 }
