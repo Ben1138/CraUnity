@@ -42,6 +42,9 @@ public struct CraBone
     }
 }
 
+/// <summary>
+/// Only include bones specified in this mask
+/// </summary>
 public struct CraMask
 {
     public bool MaskChildren;
@@ -242,6 +245,7 @@ public class CraClip
 public class CraPlayer
 {
     public bool Looping = false;
+    public float PlaybackSpeed = 1f;
     public bool Finished { get; private set; }
     public Transform AssignedTo { get; private set; }
     public CraClip Clip;
@@ -251,6 +255,7 @@ public class CraPlayer
     public float Playback = 0f;
     Dictionary<int, int> HashToBoneIdx = new Dictionary<int, int>();
     float Duration = 0f;
+
 
     public void SetClip(CraClip clip)
     {
@@ -295,12 +300,34 @@ public class CraPlayer
 
     public void Evaluate(float timePos)
     {
-        int frameIdx = Mathf.FloorToInt(timePos * Clip.Fps);
+        float frameNo = timePos * Clip.Fps;
+        int frameIdx = Mathf.FloorToInt(frameNo);
+        if (PlaybackSpeed >= CraSettings.PLAYBACK_LERP_THRESHOLD || frameIdx >= Clip.FrameCount)
+        {
+            for (int i = 0; i < AssignedIndices.Length; ++i)
+            {
+                int idx = AssignedIndices[i];
+                AssignedBones[idx].localPosition = Clip.Bones[idx].Curve.BakedPositions[frameIdx];
+                AssignedBones[idx].localRotation = Clip.Bones[idx].Curve.BakedRotations[frameIdx];
+            }
+            return;
+        }
+
+        int frameIdx2 = Mathf.CeilToInt(frameNo);
+        float lerp = frameNo - frameIdx;
         for (int i = 0; i < AssignedIndices.Length; ++i)
         {
             int idx = AssignedIndices[i];
-            AssignedBones[idx].localPosition = Clip.Bones[idx].Curve.BakedPositions[frameIdx];
-            AssignedBones[idx].localRotation = Clip.Bones[idx].Curve.BakedRotations[frameIdx];
+            AssignedBones[idx].localPosition = Vector3.Lerp(
+                Clip.Bones[idx].Curve.BakedPositions[frameIdx], 
+                Clip.Bones[idx].Curve.BakedPositions[frameIdx2], 
+                lerp
+            );
+            AssignedBones[idx].localRotation = Quaternion.Slerp(
+                Clip.Bones[idx].Curve.BakedRotations[frameIdx], 
+                Clip.Bones[idx].Curve.BakedRotations[frameIdx2], 
+                lerp
+            );
         }
     }
 
@@ -321,7 +348,7 @@ public class CraPlayer
     {
         if (!IsPlaying) return;
 
-        Playback += deltaTime;
+        Playback += deltaTime * PlaybackSpeed;
         if (Playback > Duration)
         {
             Playback = 0;
@@ -335,16 +362,18 @@ public class CraPlayer
         Evaluate(Playback);
     }
 
-    void AssignInternal(Transform root, CraMask? mask = null)
+    void AssignInternal(Transform root, CraMask? mask = null, bool maskedChild=false)
     {
         int boneHash = CraSettings.BoneHashFunction(root.name);
+        bool isMasked = false;
         if (HashToBoneIdx.TryGetValue(boneHash, out int boneIdx))
         {
-            if (mask.HasValue && mask.Value.BoneHashes.Contains(boneHash))
+            if (mask.HasValue)
             {
-                if (mask.Value.MaskChildren)
+                if (maskedChild || mask.Value.BoneHashes.Contains(boneHash))
                 {
-                    return;
+                    AssignedBones[boneIdx] = root;
+                    isMasked = mask.Value.MaskChildren;
                 }
             }
             else
@@ -354,12 +383,17 @@ public class CraPlayer
         }
         for (int i = 0; i < root.childCount; ++i)
         {
-            AssignInternal(root.GetChild(i));
+            AssignInternal(root.GetChild(i), mask, isMasked);
         }
     }
 }
 
 public static class CraSettings
 {
+    public const int STATE_NONE = -1;
+    public const int STATE_LEVEL_COUNT = 2;
+    public const int MAX_STATES = 32;
+    public const float PLAYBACK_LERP_THRESHOLD = 0.5f;
+
     public static Func<string, int> BoneHashFunction;
 }

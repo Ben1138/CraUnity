@@ -19,48 +19,45 @@ public struct CraState
     public CraState(CraPlayer animation)
     {
         Animation = animation;
-        _Transitions = new CraStateTransition[CraAnimator.MAX_STATES];
+        _Transitions = new CraStateTransition[CraSettings.MAX_STATES];
     }
 }
 
-public class CraAnimator : MonoBehaviour
+public struct CraPosRot
 {
-    public const int MAX_STATES = 32;
+    public Vector3 Position;
+    public Quaternion Rotation;
+
+    public CraPosRot(Vector3 pos, Quaternion rot)
+    {
+        Position = pos;
+        Rotation = rot;
+    }
+}
+
+public class CraLayer
+{
+    public Dictionary<int, CraPosRot> BasePose;
+    public int CurrentStateIdx = CraSettings.STATE_NONE;
 
     public Action OnTransitFinished;
     public Action OnStateFinished;
 
-    public int CurrentStateIdx { get; private set; } = -1;
-
-    struct PosRot
-    {
-        public Vector3 Position;
-        public Quaternion Rotation;
-
-        public PosRot(Vector3 pos, Quaternion rot)
-        {
-            Position = pos;
-            Rotation = rot;
-        }
-    }
-
-    Dictionary<int, PosRot> BasePose = new Dictionary<int, PosRot>();
-    CraState[] States = new CraState[MAX_STATES];
-    bool[] StateSlots = new bool[MAX_STATES];
-    int TransitToIdx = -1;
+    CraState[] States = new CraState[CraSettings.MAX_STATES];
+    bool[] StateSlots = new bool[CraSettings.MAX_STATES];
+    int BlendStateIdx = CraSettings.STATE_NONE;
     float TransitTimer;
+    float BlendValue;
     bool OnStateFinishedInvoked = false;
-
 
     public int AddState(CraState state)
     {
-        Debug.Assert(state.Animation.AssignedTo == transform);
         if (!StateSlots[0])
         {
             CurrentStateIdx = 0;
         }
 
-        for (int i = 0; i < MAX_STATES; ++i)
+        for (int i = 0; i < CraSettings.MAX_STATES; ++i)
         {
             if (!StateSlots[i])
             {
@@ -69,13 +66,13 @@ public class CraAnimator : MonoBehaviour
                 return i;
             }
         }
-        Debug.LogError($"No more state slots available! Consider increasing the max slots size of {MAX_STATES}.");
-        return -1;
+        Debug.LogError($"No more state slots available! Consider increasing the max slots size of {CraSettings.MAX_STATES}.");
+        return CraSettings.STATE_NONE;
     }
 
     public bool RemoveState(int stateIdx)
     {
-        Debug.Assert(stateIdx >= 0 && stateIdx < MAX_STATES);
+        Debug.Assert(stateIdx >= 0 && stateIdx < CraSettings.MAX_STATES);
         if (!StateSlots[stateIdx]) return false;
         StateSlots[stateIdx] = false;
         return true;
@@ -83,17 +80,30 @@ public class CraAnimator : MonoBehaviour
 
     public void SetState(int stateIdx)
     {
-        Debug.Assert(stateIdx >= 0 && stateIdx < MAX_STATES);
-        States[CurrentStateIdx].Animation.Reset();
+        if (stateIdx == CurrentStateIdx) return;
+
+        Debug.Assert(stateIdx < CraSettings.MAX_STATES);
+        if (CurrentStateIdx != CraSettings.STATE_NONE)
+        {
+            States[CurrentStateIdx].Animation.Reset();
+        }
         CurrentStateIdx = stateIdx;
-        States[CurrentStateIdx].Animation.Play();
-        OnStateFinishedInvoked = false;
+        if (stateIdx != CraSettings.STATE_NONE)
+        {
+            States[stateIdx].Animation.Play();
+            OnStateFinishedInvoked = false;
+        }
+    }
+
+    public void SetPlaybackSpeed(int stateIdx, float playbackSpeed)
+    {
+        States[stateIdx].Animation.PlaybackSpeed = playbackSpeed;
     }
 
     public void ConnectStates(int stateIdx1, int stateIdx2)
     {
-        Debug.Assert(stateIdx1 >= 0 && stateIdx1 < MAX_STATES && StateSlots[stateIdx1]);
-        Debug.Assert(stateIdx2 >= 0 && stateIdx2 < MAX_STATES && StateSlots[stateIdx2]);
+        Debug.Assert(stateIdx1 >= 0 && stateIdx1 < CraSettings.MAX_STATES && StateSlots[stateIdx1]);
+        Debug.Assert(stateIdx2 >= 0 && stateIdx2 < CraSettings.MAX_STATES && StateSlots[stateIdx2]);
 
         ref CraState state1 = ref States[stateIdx1];
         ref CraState state2 = ref States[stateIdx2];
@@ -111,8 +121,8 @@ public class CraAnimator : MonoBehaviour
 
     public void DisconnectStates(int stateIdx1, int stateIdx2)
     {
-        Debug.Assert(stateIdx1 >= 0 && stateIdx1 < MAX_STATES && StateSlots[stateIdx1]);
-        Debug.Assert(stateIdx2 >= 0 && stateIdx2 < MAX_STATES && StateSlots[stateIdx2]);
+        Debug.Assert(stateIdx1 >= 0 && stateIdx1 < CraSettings.MAX_STATES && StateSlots[stateIdx1]);
+        Debug.Assert(stateIdx2 >= 0 && stateIdx2 < CraSettings.MAX_STATES && StateSlots[stateIdx2]);
 
         ref CraState state1 = ref States[stateIdx1];
         ref CraState state2 = ref States[stateIdx2];
@@ -123,49 +133,48 @@ public class CraAnimator : MonoBehaviour
 
     public void TransitTo(int stateIdx)
     {
-        if (TransitToIdx > -1)
+        if (BlendStateIdx != CraSettings.STATE_NONE)
         {
             Debug.LogWarning("There's already a transit taking place!");
             return;
         }
-        Debug.Assert(stateIdx >= 0 && stateIdx < MAX_STATES && StateSlots[stateIdx]);
+        Debug.Assert(stateIdx != CraSettings.STATE_NONE && stateIdx < CraSettings.MAX_STATES && StateSlots[stateIdx]);
 
         ref CraState from = ref States[CurrentStateIdx];
-        if (from._Transitions[stateIdx] == null)
-        {
-            Debug.LogError($"Cannot transit from '{CurrentStateIdx}' to '{stateIdx}', they are not connected!");
-            return;
-        }
+        ref CraState to = ref States[BlendStateIdx];
 
-        TransitToIdx = stateIdx;
-        TransitTimer = 0f;
-        ref CraState to = ref States[TransitToIdx];
-
-        // from now on, WE are controlling the animation
         from.Animation.IsPlaying = false;
-        to.Animation.IsPlaying = false;
-        to.Animation.Playback = 0f;
+        to.Animation.IsPlaying = true;
+        to.Animation.Playback = from.Animation.Playback;
+        CurrentStateIdx = stateIdx;
+
+        //if (from._Transitions[stateIdx] == null)
+        //{
+        //    Debug.LogError($"Cannot transit from '{CurrentStateIdx}' to '{stateIdx}', they are not connected!");
+        //    return;
+        //}
+
+        //BlendStateIdx = stateIdx;
+        //TransitTimer = 0f;
+
+        //// from now on, WE are controlling the animation
+        //from.Animation.IsPlaying = false;
+        //to.Animation.IsPlaying = false;
+        //to.Animation.Playback = 0f;
     }
 
-    void Awake()
+    public void BlendTo(int stateIdx, float blend)
     {
-        void Parse(Transform t)
-        {
-            BasePose.Add(CraSettings.BoneHashFunction(t.name), new PosRot(t.localPosition, t.localRotation));
-            for (int i = 0; i < t.childCount; ++i)
-            {
-                Parse(t.GetChild(i));
-            }
-        }
-        Parse(transform);
+        BlendStateIdx = stateIdx;
+        BlendValue = blend;
     }
 
-    protected void Tick(float deltaTime)
+    public void Tick(float deltaTime, int dbLevel)
     {
-        if (TransitToIdx > -1)
+        if (BlendStateIdx != CraSettings.STATE_NONE)
         {
             ref CraState from = ref States[CurrentStateIdx];
-            ref CraState to   = ref States[TransitToIdx];
+            ref CraState to = ref States[BlendStateIdx];
 
             CraPlayer aFrom = from.Animation;
             CraPlayer aTo = to.Animation;
@@ -176,14 +185,19 @@ public class CraAnimator : MonoBehaviour
             int frameIdxFrom = Mathf.FloorToInt(aFrom.Playback * aFrom.Clip.Fps);
             int frameIdxTo = Mathf.FloorToInt(aTo.Playback * aTo.Clip.Fps);
 
-            CraStateTransition transition = from._Transitions[TransitToIdx];
+            CraStateTransition transition = from._Transitions[BlendStateIdx];
+
+            if (false)
+            {
+                BlendValue = TransitTimer / transition.Time;
+            }
 
             Vector3 fromPos, toPos;
             Quaternion fromRot, toRot;
 
-            for (int i = 0; i < transition.Bones.Length; ++i)
+            for (int j = 0; j < transition.Bones.Length; ++j)
             {
-                int idx = transition.Bones[i];
+                int idx = transition.Bones[j];
 
                 if (aFrom.Clip.Bones[idx].Curve == null)
                 {
@@ -207,20 +221,22 @@ public class CraAnimator : MonoBehaviour
                     toRot = aFrom.Clip.Bones[idx].Curve.BakedRotations[frameIdxTo];
                 }
 
-                float lerp = TransitTimer / transition.Time;
-                aFrom.AssignedBones[idx].localPosition = Vector3.Lerp(fromPos, toPos, lerp);
-                aFrom.AssignedBones[idx].localRotation = Quaternion.Slerp(fromRot, toRot, lerp);
+                aFrom.AssignedBones[idx].localPosition = Vector3.Lerp(fromPos, toPos, BlendValue);
+                aFrom.AssignedBones[idx].localRotation = Quaternion.Slerp(fromRot, toRot, BlendValue);
             }
 
-            TransitTimer += deltaTime;
-            if (TransitTimer >= transition.Time)
+            if (false)
             {
-                from.Animation.Reset();
-                to.Animation.IsPlaying = true;
-                CurrentStateIdx = TransitToIdx;
-                TransitToIdx = -1;
-                OnTransitFinished?.Invoke();
-                OnStateFinishedInvoked = false;
+                TransitTimer += deltaTime;
+                if (TransitTimer >= transition.Time)
+                {
+                    from.Animation.Reset();
+                    to.Animation.IsPlaying = true;
+                    CurrentStateIdx = BlendStateIdx;
+                    BlendStateIdx = CraSettings.STATE_NONE;
+                    OnTransitFinished?.Invoke();
+                    OnStateFinishedInvoked = false;
+                }
             }
         }
         else if (CurrentStateIdx > -1)
@@ -232,6 +248,85 @@ public class CraAnimator : MonoBehaviour
                 OnStateFinished?.Invoke();
                 OnStateFinishedInvoked = true;
             }
+        }
+    }
+}
+
+public class CraAnimator : MonoBehaviour
+{
+    public Action<int> OnTransitFinished;
+    public Action<int> OnStateFinished;
+
+    protected CraLayer[] Layers = new CraLayer[CraSettings.STATE_LEVEL_COUNT];
+    Dictionary<int, CraPosRot> BasePose = new Dictionary<int, CraPosRot>();
+
+
+    public int AddState(int layer, CraState state)
+    {
+        return Layers[layer].AddState(state);
+    }
+
+    public bool RemoveState(int layer, int stateIdx)
+    {
+        return Layers[layer].RemoveState(stateIdx);
+    }
+
+    public void SetState(int layer, int stateIdx)
+    {
+        Layers[layer].SetState(stateIdx);
+    }
+
+    public void SetPlaybackSpeed(int layer, int stateIdx, float playbackSpeed)
+    {
+        Layers[layer].SetPlaybackSpeed(stateIdx, playbackSpeed);
+    }
+
+    public void ConnectStates(int layer, int stateIdx1, int stateIdx2)
+    {
+        Layers[layer].ConnectStates(stateIdx1, stateIdx2);
+    }
+
+    public void DisconnectStates(int layer, int stateIdx1, int stateIdx2)
+    {
+        Layers[layer].DisconnectStates(stateIdx1, stateIdx2);
+    }
+
+    public void TransitTo(int layer, int stateIdx)
+    {
+        Layers[layer].TransitTo(stateIdx);
+    }
+
+    public void BlendTo(int layer, int stateIdx, float blend)
+    {
+        Layers[layer].BlendTo(stateIdx, blend);
+    }
+
+    public void Tick(float deltaTime)
+    {
+        for (int layer = 0; layer < CraSettings.STATE_LEVEL_COUNT; ++layer)
+        {
+            Layers[layer].Tick(deltaTime, layer);
+        }
+    }
+
+    void Awake()
+    {
+        void Parse(Transform t)
+        {
+            BasePose.Add(CraSettings.BoneHashFunction(t.name), new CraPosRot(t.localPosition, t.localRotation));
+            for (int i = 0; i < t.childCount; ++i)
+            {
+                Parse(t.GetChild(i));
+            }
+        }
+        Parse(transform);
+
+        for (int layer = 0; layer < CraSettings.STATE_LEVEL_COUNT; ++layer)
+        {
+            int idx = layer;
+            Layers[layer] = new CraLayer();
+            Layers[layer].OnStateFinished += () => OnStateFinished?.Invoke(idx);
+            Layers[layer].OnTransitFinished += () => OnTransitFinished?.Invoke(idx);
         }
     }
 }
