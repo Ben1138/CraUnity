@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
+using System.IO;
 using UnityEngine;
 
 
@@ -240,6 +240,17 @@ public class CraClip
             Bones[i].Curve.Bake(Fps, FrameCount);
         }
     }
+
+    //public void Export(string path)
+    //{
+    //    StreamWriter writer = new StreamWriter(path + "/" + Name + ".csv");
+
+    //    for (int i = 0; i < Bones.Length; ++i)
+    //    {
+            
+    //        Bones[i].Curve.BakedPositions
+    //    }
+    //}
 }
 
 public class CraPlayer
@@ -253,8 +264,9 @@ public class CraPlayer
     public int[] AssignedIndices;
     public bool IsPlaying;
     public float Playback = 0f;
+    public bool UpdateEvaluate = true;
     Dictionary<int, int> HashToBoneIdx = new Dictionary<int, int>();
-    float Duration = 0f;
+    public float Duration { get; private set; } = 0f;
 
 
     public void SetClip(CraClip clip)
@@ -358,8 +370,11 @@ public class CraPlayer
                 Finished = true;
                 return;
             }
-        }    
-        Evaluate(Playback);
+        }
+        if (UpdateEvaluate)
+        {
+            Evaluate(Playback);
+        }
     }
 
     void AssignInternal(Transform root, CraMask? mask = null, bool maskedChild=false)
