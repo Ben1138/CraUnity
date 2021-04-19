@@ -1,9 +1,7 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
-using UnityEngine.Rendering;
 
 public class CraStateTransition
 {
@@ -43,11 +41,12 @@ public class CraLayer
     public Action OnTransitFinished;
     public Action OnStateFinished;
 
+    public int BlendStateIdx = CraSettings.STATE_NONE;
+    public float BlendValue;
+
     CraState[] States = new CraState[CraSettings.MAX_STATES];
     bool[] StateSlots = new bool[CraSettings.MAX_STATES];
-    int BlendStateIdx = CraSettings.STATE_NONE;
     float TransitTimer;
-    float BlendValue;
     bool OnStateFinishedInvoked = false;
 
     public int AddState(CraState state)
@@ -169,7 +168,7 @@ public class CraLayer
         BlendValue = blend;
     }
 
-    public void Tick(float deltaTime, int dbLevel)
+    public void Tick(float deltaTime)
     {
         if (BlendStateIdx != CraSettings.STATE_NONE)
         {
@@ -181,6 +180,15 @@ public class CraLayer
 
             aFrom.Playback += deltaTime;
             aTo.Playback += deltaTime;
+
+            if (aFrom.Playback > aFrom.Duration)
+            {
+                aFrom.Playback = 0;
+            }
+            if (aTo.Playback > aTo.Duration)
+            {
+                aTo.Playback = 0;
+            }
 
             int frameIdxFrom = Mathf.FloorToInt(aFrom.Playback * aFrom.Clip.Fps);
             int frameIdxTo = Mathf.FloorToInt(aTo.Playback * aTo.Clip.Fps);
@@ -257,7 +265,7 @@ public class CraAnimator : MonoBehaviour
     public Action<int> OnTransitFinished;
     public Action<int> OnStateFinished;
 
-    protected CraLayer[] Layers = new CraLayer[CraSettings.STATE_LEVEL_COUNT];
+    public CraLayer[] Layers = new CraLayer[CraSettings.STATE_LEVEL_COUNT];
     Dictionary<int, CraPosRot> BasePose = new Dictionary<int, CraPosRot>();
 
 
@@ -305,7 +313,7 @@ public class CraAnimator : MonoBehaviour
     {
         for (int layer = 0; layer < CraSettings.STATE_LEVEL_COUNT; ++layer)
         {
-            Layers[layer].Tick(deltaTime, layer);
+            Layers[layer].Tick(deltaTime);
         }
     }
 
