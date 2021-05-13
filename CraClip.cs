@@ -4,6 +4,12 @@ using System.IO;
 using UnityEngine;
 
 
+public enum CraInterpMethod
+{
+    Linear,
+    NearestNeighbour
+}
+
 public struct CraKey : IComparable 
 {
     public float Time;
@@ -73,6 +79,9 @@ public class CraCurve
     public int FrameCount { get; private set; }
     public float Fps { get; private set; } = 30f;
 
+    // contains indices of baked frames corresponding to the original edit keys
+    public Queue<int> _BakedKeyIndices;
+
     public int GetEstimatedFrameCount(float fps)
     {
         float endTime = EditKeys[EditKeys.Count - 1].Time;
@@ -80,7 +89,7 @@ public class CraCurve
         return Mathf.CeilToInt(endTime / timeStep);
     }
 
-    public void Bake(float fps, int frameCount)
+    public void Bake(float fps, int frameCount, CraInterpMethod method)
     {
         if (EditKeys.Count == 0)
         {
@@ -100,6 +109,8 @@ public class CraCurve
         BakedFrames = new float[FrameCount];
         BakedFrames[0] = EditKeys[0].Value;
 
+        _BakedKeyIndices = new Queue<int>();
+
         float endTime = EditKeys[EditKeys.Count - 1].Time;
 
         int lastIdx = 0;
@@ -116,11 +127,24 @@ public class CraCurve
                 {
                     lastIdx = nextIdx++;
                     posTimeNext = EditKeys[nextIdx].Time;
+
+                    _BakedKeyIndices.Enqueue(i);
                 }
+
                 float duration = EditKeys[nextIdx].Time - EditKeys[lastIdx].Time;
                 Debug.Assert(duration > 0f);
-                float t = (timeNow - EditKeys[lastIdx].Time) / duration;
-                BakedFrames[i] = Mathf.Lerp(EditKeys[lastIdx].Value, EditKeys[nextIdx].Value, t);
+
+                if (method == CraInterpMethod.Linear)
+                {
+                    float t = (timeNow - EditKeys[lastIdx].Time) / duration;
+                    BakedFrames[i] = Mathf.Lerp(EditKeys[lastIdx].Value, EditKeys[nextIdx].Value, t);
+                }
+                else if (method == CraInterpMethod.NearestNeighbour)
+                {
+                    float diffLast = timeNow - EditKeys[lastIdx].Time;
+                    float diffNext = EditKeys[nextIdx].Time - timeNow;
+                    BakedFrames[i] = diffLast < diffNext ? EditKeys[lastIdx].Value : EditKeys[nextIdx].Value;
+                }
             }
             else
             {
@@ -136,6 +160,8 @@ public class CraTransformCurve
 {
     public int FrameCount { get; private set; }
     public float Fps { get; private set; } = 30f;
+
+    public ulong BakeMemoryConsumption { get; private set; }
 
     // 0 : rot X
     // 1 : rot Y
@@ -177,10 +203,22 @@ public class CraTransformCurve
 
         Fps = fps;
         FrameCount = frameCount;
+        BakeMemoryConsumption = 0;
 
         for (int i = 0; i < 7; ++i)
         {
-            Curves[i].Bake(fps, frameCount);
+            if (i >= 4)
+            {
+                // Bake positions with simple linear interpolation. Done.
+                Curves[i].Bake(fps, frameCount, CraInterpMethod.Linear);
+            }
+            else
+            {
+                // Bake rotations with nearest neighbour. This will first lead to "edgy" rotations,
+                // but will ensure consistent key frames accross all channels (x y z w) we can
+                // then use for spherical linear interpolation
+                Curves[i].Bake(fps, frameCount, CraInterpMethod.NearestNeighbour);
+            }
         }
 
         BakedPositions = new Vector3[FrameCount];
@@ -197,11 +235,63 @@ public class CraTransformCurve
             BakedPositions[i].z = Curves[6].BakedFrames[i];
         }
 
+        // Do proper spherical linear interpolation between rotation key frames, overriding in between frames.
+        // TODO: It seems there's still a faulty when dealing with either:
+        // - start to first key frame
+        // - last key frame to end
+        // further investigation needed!
+        int lastRotFrameIdx = 0;
+        int nextRotFrameIdx = 0;
+        for (int i = 0; i < FrameCount; ++i)
+        {
+            // ensure all prior key indices get dequeued
+            for (int ch = 0; ch < 4; ++ch)
+            {
+                while (Curves[ch]._BakedKeyIndices.Count > 0 && Curves[ch]._BakedKeyIndices.Peek() <= i)
+                {
+                    Curves[ch]._BakedKeyIndices.Dequeue();
+                }
+            }
+
+            int nextCh = FrameCount - 1;
+            for (int ch = 0; ch < 4; ++ch)
+            {
+                if (Curves[ch]._BakedKeyIndices.Count > 0)
+                {
+                    // get the next key frame
+                    int peek = Curves[ch]._BakedKeyIndices.Peek();
+                    if (Curves[ch]._BakedKeyIndices.Count > 0 && peek > i)
+                    {
+                        nextCh = Mathf.Min(nextCh, peek);
+                    }
+                }
+            }
+
+            if (nextCh > nextRotFrameIdx)
+            {
+                lastRotFrameIdx = nextRotFrameIdx;
+                nextRotFrameIdx = nextCh;
+            }
+
+            float frameDuration = nextRotFrameIdx - lastRotFrameIdx;
+            if (frameDuration > 0f)
+            {
+                ref Quaternion last = ref BakedRotations[lastRotFrameIdx];
+                ref Quaternion next = ref BakedRotations[nextRotFrameIdx];
+
+                float t = (i - lastRotFrameIdx) / frameDuration;
+                BakedRotations[i] = Quaternion.Slerp(last, next, t);
+            }
+        }
+
         // remove redundant data
         for (int i = 0; i < 7; ++i)
         {
             Curves[i].BakedFrames = null;
+            Curves[i]._BakedKeyIndices = null;
         }
+
+        BakeMemoryConsumption = (ulong)BakedPositions.Length * sizeof(float) * 3 + (ulong)BakedRotations.Length * sizeof(float) * 4;
     }
 }
 
@@ -212,6 +302,14 @@ public class CraClip
     public int FrameCount { get; private set; } = 0;
     public CraBone[] Bones;
 
+    // in bytes
+    public ulong BakeMemoryConsumption { get; private set; }
+    public static ulong GlobalBakeMemoryConsumption { get; private set; }
+
+    ~CraClip()
+    {
+        GlobalBakeMemoryConsumption -= BakeMemoryConsumption;
+    }
 
     public void Bake(float fps)
     {
@@ -227,6 +325,8 @@ public class CraClip
             return;
         }
 
+        GlobalBakeMemoryConsumption -= BakeMemoryConsumption;
+        BakeMemoryConsumption = 0;
         FrameCount = 0;
         Fps = fps;
 
@@ -238,19 +338,11 @@ public class CraClip
         for (int i = 0; i < Bones.Length; ++i)
         {
             Bones[i].Curve.Bake(Fps, FrameCount);
+            BakeMemoryConsumption += Bones[i].Curve.BakeMemoryConsumption;
         }
+
+        GlobalBakeMemoryConsumption += BakeMemoryConsumption;
     }
-
-    //public void Export(string path)
-    //{
-    //    StreamWriter writer = new StreamWriter(path + "/" + Name + ".csv");
-
-    //    for (int i = 0; i < Bones.Length; ++i)
-    //    {
-            
-    //        Bones[i].Curve.BakedPositions
-    //    }
-    //}
 }
 
 public class CraPlayer
