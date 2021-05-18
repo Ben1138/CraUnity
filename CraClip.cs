@@ -49,7 +49,7 @@ public struct CraBone
 }
 
 /// <summary>
-/// Only include bones specified in this mask
+/// Masks are inclusive, i.e. only assign bones to a clip specified in here
 /// </summary>
 public struct CraMask
 {
@@ -300,7 +300,9 @@ public class CraClip
     public string Name;
     public float Fps { get; private set; } = -1f;    // -1 => not yet baked
     public int FrameCount { get; private set; } = 0;
-    public CraBone[] Bones;
+    public CraBone[] Bones { get; private set; }
+
+    Dictionary<int, int> BoneHashToIdx = new Dictionary<int, int>();
 
     // in bytes
     public ulong BakeMemoryConsumption { get; private set; }
@@ -309,6 +311,34 @@ public class CraClip
     ~CraClip()
     {
         GlobalBakeMemoryConsumption -= BakeMemoryConsumption;
+    }
+
+    public void SetBones(CraBone[] bones)
+    {
+        Bones = bones;
+        BoneHashToIdx.Clear();
+        for (int i = 0; i < Bones.Length; ++i)
+        {
+            BoneHashToIdx.Add(Bones[i].BoneHash, i);
+        }
+    }
+
+    public int GetBoneIdx(string boneName)
+    {
+        if (BoneHashToIdx.TryGetValue(CraSettings.BoneHashFunction(boneName), out int idx))
+        {
+            return idx;
+        }
+        return -1;
+    }
+
+    public CraBone? GetBone(int hash)
+    {
+        if (BoneHashToIdx.TryGetValue(hash, out int idx))
+        {
+            return Bones[idx];
+        }
+        return null;
     }
 
     public void Bake(float fps)
@@ -349,89 +379,220 @@ public class CraPlayer
 {
     public bool Looping = false;
     public float PlaybackSpeed = 1f;
+    public float Blending; // blending between clip1 (0.0) and clip2 (1.0)
     public bool Finished { get; private set; }
-    public Transform AssignedTo { get; private set; }
-    public CraClip Clip;
-    public Transform[] AssignedBones;
-    public int[] AssignedIndices;
-    public bool IsPlaying;
-    public float Playback = 0f;
-    public bool UpdateEvaluate = true;
+    public float Duration { get; private set; }
+    public bool IsPlaying { get; private set; }
+    public float Playback { get; private set; }
+    public bool SupportBlending => ClipMinor != null;
+
+    const float DIST_WEIGHT_MUL = 0.8f;
+
+    CraClip ClipMajor;
+    CraClip ClipMinor;
+    Transform[] AssignedBones;
+    int FrameCount;
+
+    // Contains all indices of 'AssignedBones' slots that are not null.
+    // A slot in 'AssignedBones' can be null, if the clip animates a bone that
+    // hasn't been found in the assigned skeleton.
+    int[] AssignedBoneIndices;
+
+    int[] AssignedBoneIndicesMajor;
+    int[] AssignedBoneIndicesMinor;
+
+    // Map a bone hash to a specific index of 'AssignedBones'
     Dictionary<int, int> HashToBoneIdx = new Dictionary<int, int>();
-    public float Duration { get; private set; } = 0f;
+
+    // For each major frame, map to a minor frame that's most 'alike'
+    int[] NearestFrameIdx;
 
 
     public void SetClip(CraClip clip)
     {
+        Debug.Assert(clip != null);
+
+        // A clip animates certain bones. Assign each of those bones an index we can later lookup
         HashToBoneIdx.Clear();
         for (int i = 0; i < clip.Bones.Length; ++i)
         {
             HashToBoneIdx.Add(clip.Bones[i].BoneHash, i);
         }
-        Clip = clip;
-        Duration = clip.FrameCount / clip.Fps;
+        ClipMajor = clip;
+        ClipMinor = null;
+        FrameCount = clip.FrameCount;
+        Duration = FrameCount / clip.Fps;
+    }
+
+    public void SetClips(CraClip clip1, CraClip clip2)
+    {
+        Debug.Assert(clip1 != null);
+        Debug.Assert(clip2 != null);
+        Debug.Assert(clip1.Fps == clip2.Fps);
+
+        // A clip animates certain bones. Assign each of those bones an index we can later lookup
+        HashToBoneIdx.Clear();
+        for (int i = 0; i < clip1.Bones.Length; ++i)
+        {
+            HashToBoneIdx.Add(clip1.Bones[i].BoneHash, i);
+        }
+
+        int idx = clip1.Bones.Length;
+        for (int i = 0; i < clip2.Bones.Length; ++i)
+        {
+            if (!HashToBoneIdx.ContainsKey(clip2.Bones[i].BoneHash))
+            {
+                HashToBoneIdx.Add(clip2.Bones[i].BoneHash, idx++);
+            }
+        }
+
+        // the longer clip is always the major clip
+        if (clip1.FrameCount >= clip2.FrameCount)
+        {
+            ClipMajor = clip1;
+            ClipMinor = clip2;
+            FrameCount = clip1.FrameCount;
+        }
+        else
+        {
+            ClipMajor = clip2;
+            ClipMinor = clip1;
+            FrameCount = clip2.FrameCount;
+        }
+
+        Duration = FrameCount / clip1.Fps;
     }
 
     public void Assign(Transform root, CraMask? mask=null)
     {
+        Debug.Assert(root != null);
+
         if (CraSettings.BoneHashFunction == null)
         {
             throw new Exception("CraSettings.BoneHashFunction is not assigned! You need to assign a custom hash function!");
         }
-        if (Clip == null)
+        if (ClipMajor == null)
         {
-            Debug.LogError($"Cannot assign Transform '{root.name}' to CraPlayer! No clip set!");
+            Debug.LogError($"Cannot assign Transform '{root.name}' to CraPlayer! No clip(s) set!");
             return;
         }
-        AssignedBones = new Transform[Clip.Bones.Length];
-        AssignInternal(root, mask);
-        AssignedTo = root;
 
-        // store assigned indices so we don't have to do a null
-        // check for each bone for every single evaluation
+        AssignedBones = new Transform[HashToBoneIdx.Count];
+        AssignInternal(root, mask);
+
+        // Store assigned indices so we don't have to do a null check
+        // for each bone in 'AssignedBones' for every single evaluation.
+        // Also, store the bone index for each assigned bone for both
+        // the major and minor clip for easy indexing.
         List<int> assignedIndices = new List<int>();
+        List<int> assignedIndicesMajor = new List<int>();
+        List<int> assignedIndicesMinor = new List<int>();
         for (int i = 0; i < AssignedBones.Length; ++i)
         {
             if (AssignedBones[i] != null)
             {
                 assignedIndices.Add(i);
+                assignedIndicesMajor.Add(ClipMajor.GetBoneIdx(AssignedBones[i].name));
+
+                if (ClipMinor != null)
+                {
+                    assignedIndicesMinor.Add(ClipMinor.GetBoneIdx(AssignedBones[i].name));
+                }
+            }
+        }
+        AssignedBoneIndices = assignedIndices.ToArray();
+        AssignedBoneIndicesMajor = assignedIndicesMajor.ToArray();
+        AssignedBoneIndicesMinor = assignedIndicesMinor.ToArray();
+
+        // for each major frame, calculate nearest minor frame. needed for blending
+        if (ClipMinor != null)
+        {
+            NearestFrameIdx = new int[ClipMajor.FrameCount];
+            for (int frameIdx = 0; frameIdx < NearestFrameIdx.Length; ++frameIdx)
+            {
+                // To get the nearest neighbour of a frame, iterate all bones from
+                // major and minor clip and compare their rotation angle distances.
+
+                // We multiply the rotation distance by a weight that get's decreased 
+                // while going down the bone hierarchy. This should reflect the importance
+                // of different bones. E.g. if two frames differentiate by, lets say 20 degrees,
+                // one would say that if that 20 degrees completely apply to one thigh bone, 
+                // that frame is more 'different' than if that 20 degrees completely apply
+                // to one foot bone.
+
+                // TODO: Using the bones world distances instead might yield better results.
+
+                float currDist = float.MaxValue;
+                int   currMinorFrameIdx = 0;
+
+                for (int minorFrame = 0; minorFrame < ClipMinor.FrameCount; ++minorFrame)
+                {
+                    float dist = 0f;
+                    for (int bi1 = 0; bi1 < ClipMajor.Bones.Length; bi1++)
+                    {
+                        ref CraBone majorBone = ref ClipMajor.Bones[bi1];
+                        CraBone?    minorBone = ClipMinor.GetBone(majorBone.BoneHash);
+                        if (minorBone.HasValue)
+                        {
+                            float angle = Quaternion.Angle(majorBone.Curve.BakedRotations[frameIdx], minorBone.Value.Curve.BakedRotations[minorFrame]);
+                            dist += angle;
+                        }
+                    }
+
+                    if (dist < currDist)
+                    {
+                        currDist = dist;
+                        currMinorFrameIdx = minorFrame;
+                    }
+                }
+
+                NearestFrameIdx[frameIdx] = currMinorFrameIdx;
             }
         }
 
-        AssignedIndices = assignedIndices.ToArray();
-        Evaluate(0f);
+        Evaluate();
     }
 
-    public void Evaluate(float timePos)
+    public void EvaluateFrame(float timePos)
     {
-        float frameNo = timePos * Clip.Fps;
-        int frameIdx = Mathf.FloorToInt(frameNo);
-        if (PlaybackSpeed >= CraSettings.PLAYBACK_LERP_THRESHOLD || frameIdx >= Clip.FrameCount)
-        {
-            for (int i = 0; i < AssignedIndices.Length; ++i)
-            {
-                int idx = AssignedIndices[i];
-                AssignedBones[idx].localPosition = Clip.Bones[idx].Curve.BakedPositions[frameIdx];
-                AssignedBones[idx].localRotation = Clip.Bones[idx].Curve.BakedRotations[frameIdx];
-            }
-            return;
-        }
+        Reset();
+        Playback = timePos;
+        Evaluate();
+    }
 
-        int frameIdx2 = Mathf.CeilToInt(frameNo);
-        float lerp = frameNo - frameIdx;
-        for (int i = 0; i < AssignedIndices.Length; ++i)
+    void Evaluate()
+    {
+        float frameNo = Playback * ClipMajor.Fps;
+        int frameIdx = Mathf.FloorToInt(frameNo);
+
+        if (ClipMinor != null)
         {
-            int idx = AssignedIndices[i];
-            AssignedBones[idx].localPosition = Vector3.Lerp(
-                Clip.Bones[idx].Curve.BakedPositions[frameIdx], 
-                Clip.Bones[idx].Curve.BakedPositions[frameIdx2], 
-                lerp
-            );
-            AssignedBones[idx].localRotation = Quaternion.Slerp(
-                Clip.Bones[idx].Curve.BakedRotations[frameIdx], 
-                Clip.Bones[idx].Curve.BakedRotations[frameIdx2], 
-                lerp
-            );
+            for (int i = 0; i < AssignedBoneIndices.Length; ++i)
+            {
+                int boneIdx = AssignedBoneIndices[i];
+
+                ref CraBone boneMajor = ref ClipMajor.Bones[AssignedBoneIndicesMajor[i]];
+                ref CraBone boneMinor = ref ClipMinor.Bones[AssignedBoneIndicesMinor[i]];
+
+                Vector3 posMajor = boneMajor.Curve.BakedPositions[frameIdx];
+                Vector3 posMinor = boneMinor.Curve.BakedPositions[NearestFrameIdx[frameIdx]];
+
+                Quaternion rotMajor = boneMajor.Curve.BakedRotations[frameIdx];
+                Quaternion rotMinor = boneMinor.Curve.BakedRotations[NearestFrameIdx[frameIdx]];
+
+                AssignedBones[boneIdx].localPosition = Vector3.Lerp(posMajor, posMinor, Blending);
+                AssignedBones[boneIdx].localRotation = Quaternion.Slerp(rotMajor, rotMinor, Blending);
+            }
+        }
+        else
+        {
+            for (int i = 0; i < AssignedBoneIndices.Length; ++i)
+            {
+                int boneIdx = AssignedBoneIndices[i];
+                ref CraBone boneMajor = ref ClipMajor.Bones[AssignedBoneIndicesMajor[i]];
+                AssignedBones[boneIdx].localPosition = boneMajor.Curve.BakedPositions[frameIdx];
+                AssignedBones[boneIdx].localRotation = boneMajor.Curve.BakedRotations[frameIdx];
+            }
         }
     }
 
@@ -463,10 +624,7 @@ public class CraPlayer
                 return;
             }
         }
-        if (UpdateEvaluate)
-        {
-            Evaluate(Playback);
-        }
+        Evaluate();
     }
 
     void AssignInternal(Transform root, CraMask? mask = null, bool maskedChild=false)
@@ -497,10 +655,10 @@ public class CraPlayer
 
 public static class CraSettings
 {
-    public const int STATE_NONE = -1;
-    public const int STATE_LEVEL_COUNT = 2;
-    public const int MAX_STATES = 32;
-    public const float PLAYBACK_LERP_THRESHOLD = 0.5f;
+    public const int    STATE_NONE = -1;
+    public const int    STATE_MAX_LAYERS = 2;
+    public const int    MAX_STATES = 32;
+    public const float  PLAYBACK_LERP_THRESHOLD = 0.5f;
 
     public static Func<string, int> BoneHashFunction;
 }
