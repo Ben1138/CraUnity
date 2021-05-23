@@ -67,14 +67,7 @@ public class CraMonitor : EditorWindow
         if (state != null)
         {
             EditorGUILayout.LabelField("Playback Speed");
-            state.PlaybackSpeed = EditorGUILayout.Slider(state.PlaybackSpeed, 0f, 10f);
-
-            if (state.SupportBlending)
-            {
-                EditorGUILayout.Space();
-                EditorGUILayout.LabelField("Blending");
-                state.Blending = EditorGUILayout.Slider(state.Blending, 0f, 1f);
-            }
+            state.SetPlaybackSpeed(EditorGUILayout.Slider(state.PlaybackSpeed, 0f, 10f));
 
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Looping");

@@ -31,7 +31,8 @@ public class CraLayer
                 return i;
             }
         }
-        Debug.LogError($"No more state slots available! Consider increasing the max slots size of {CraSettings.MAX_STATES}.");
+
+        Debug.LogError($"No more state slots available! Consider increasing the max slots size of {CraSettings.MAX_STATES}");
         return CraSettings.STATE_NONE;
     }
 
@@ -64,14 +65,20 @@ public class CraLayer
         CurrentStateIdx = stateIdx;
         if (stateIdx != CraSettings.STATE_NONE)
         {
-            States[stateIdx].Play();
+            States[stateIdx].Play(true);
             OnStateFinishedInvoked = false;
         }
     }
 
+    public void TransitFromAboveLayer()
+    {
+        Debug.Assert(CurrentStateIdx != CraSettings.STATE_NONE);
+        States[CurrentStateIdx].ResetTransition();
+    }
+
     public void SetPlaybackSpeed(int stateIdx, float playbackSpeed)
     {
-        States[stateIdx].PlaybackSpeed = playbackSpeed;
+        States[stateIdx].SetPlaybackSpeed(playbackSpeed);
     }
 
     public void Tick(float deltaTime)
@@ -115,6 +122,18 @@ public class CraAnimator : MonoBehaviour
     public void SetState(int layer, int stateIdx)
     {
         Layers[layer].SetState(stateIdx);
+
+        if (stateIdx == CraSettings.STATE_NONE)
+        {
+            for (int i = layer; i >= 0; --i)
+            {
+                if (Layers[i].CurrentStateIdx != CraSettings.STATE_NONE)
+                {
+                    Layers[i].TransitFromAboveLayer();
+                    break;
+                }
+            }
+        }
     }
 
     public void SetPlaybackSpeed(int layer, int stateIdx, float playbackSpeed)
