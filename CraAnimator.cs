@@ -1,7 +1,15 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using UnityEngine;
+using Unity.Collections;
+using Unity.Mathematics;
+using Unity.Burst;
+using Unity.Burst.Intrinsics;
+using Unity.Jobs;
+using UnityEngine.Profiling;
+using UnityEngine.Jobs;
+
+using UnityEditor;
 
 
 public class CraLayer
@@ -11,23 +19,22 @@ public class CraLayer
     public Action OnTransitFinished;
     public Action OnStateFinished;
 
-    CraPlayer[] States = new CraPlayer[CraSettings.MAX_STATES];
-    bool[] StateSlots = new bool[CraSettings.MAX_STATES];
+    public CraPlayer[] States { get; private set; } = new CraPlayer[CraSettings.MAX_STATES];
     bool OnStateFinishedInvoked = false;
+
+    static int COUNT = 0;
 
     public int AddState(CraPlayer state)
     {
-        if (!StateSlots[0])
+        if (States[0] == null)
         {
             CurrentStateIdx = 0;
         }
-
         for (int i = 0; i < CraSettings.MAX_STATES; ++i)
         {
-            if (!StateSlots[i])
+            if (States[i] == null)
             {
                 States[i] = state;
-                StateSlots[i] = true;
                 return i;
             }
         }
@@ -48,8 +55,11 @@ public class CraLayer
     public bool RemoveState(int stateIdx)
     {
         Debug.Assert(stateIdx >= 0 && stateIdx < CraSettings.MAX_STATES);
-        if (!StateSlots[stateIdx]) return false;
-        StateSlots[stateIdx] = false;
+        if (States[stateIdx] == null)
+        {
+            return false;
+        }
+        States[stateIdx] = null;
         return true;
     }
 
@@ -85,13 +95,21 @@ public class CraLayer
     {
         if (CurrentStateIdx > -1)
         {
+            Profiler.BeginSample("Retrieve current state " + CurrentStateIdx);
             CraPlayer state = States[CurrentStateIdx];
-            state.Update(deltaTime);
-            if (!OnStateFinishedInvoked && state.Finished)
+            Profiler.EndSample();
+
+            Profiler.BeginSample("Retrieve current state " + CurrentStateIdx);
+            if (!OnStateFinishedInvoked && state.IsFinished())
             {
                 OnStateFinished?.Invoke();
                 OnStateFinishedInvoked = true;
             }
+            Profiler.EndSample();
+
+            //Profiler.BeginSample("CaptureBones");
+            state.CaptureBones();
+            //Profiler.EndSample();
         }
     }
 }
@@ -145,8 +163,26 @@ public class CraAnimator : MonoBehaviour
     {
         for (int layer = 0; layer < CraSettings.STATE_MAX_LAYERS; ++layer)
         {
+            Profiler.BeginSample("Tick Layer " + layer);
             Layers[layer].Tick(deltaTime);
+            Profiler.EndSample();
         }
+    }
+
+    public CraPlayer[] GetAllStates()
+    {
+        List<CraPlayer> states = new List<CraPlayer>();
+        for (int layerIdx = 0; layerIdx < CraSettings.STATE_MAX_LAYERS; ++layerIdx)
+        {
+            for (int stateIdx = 0; stateIdx < Layers[layerIdx].States.Length; ++stateIdx)
+            {
+                if (Layers[layerIdx].States[stateIdx] != null)
+                {
+                    states.Add(Layers[layerIdx].States[stateIdx]);
+                }
+            }
+        }
+        return states.ToArray();
     }
 
     void Awake()
@@ -159,4 +195,31 @@ public class CraAnimator : MonoBehaviour
             Layers[layer].OnTransitFinished += () => OnTransitFinished?.Invoke(idx);
         }
     }
+}
+
+public struct CraHandle
+{
+    public int Handle { get; private set; }
+
+    public CraHandle(int handle)
+    {
+        Handle = handle;
+    }
+
+    public bool IsValid()
+    {
+        return Handle >= 0;
+    }
+}
+
+public struct CraTransform
+{
+    public float3 Position;
+    public float4 Rotation;
+
+    //public override bool Equals(object obj)
+    //{
+    //    CraTransform other = (CraTransform)obj;
+    //    return (Vector3)other.Position == (Vector3)Position && new Quaternion(other.Rotation.x, other.Rotation.y, other.Rotation.z, other.Rotation.w) == new Quaternion(Rotation.x, Rotation.y, Rotation.z, Rotation.w);
+    //}
 }

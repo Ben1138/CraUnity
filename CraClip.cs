@@ -1,7 +1,12 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
+using Unity.Collections;
+using UnityEngine.Jobs;
+using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Profiling;
+
+using UnityEditor;
 
 
 public enum CraInterpMethod
@@ -172,8 +177,7 @@ public class CraTransformCurve
     // 6 : pos Z
     public CraCurve[] Curves = new CraCurve[7];
 
-    public Vector3[] BakedPositions;
-    public Quaternion[] BakedRotations;
+    public CraTransform[] BakedFrames;
 
     public CraTransformCurve()
     {
@@ -195,7 +199,7 @@ public class CraTransformCurve
 
     public void Bake(float fps, int frameCount)
     {
-        if (BakedPositions != null)
+        if (BakedFrames != null)
         {
             Debug.LogError("Cannot bake twice!");
             return;
@@ -221,18 +225,17 @@ public class CraTransformCurve
             }
         }
 
-        BakedPositions = new Vector3[FrameCount];
-        BakedRotations = new Quaternion[FrameCount];
+        BakedFrames = new CraTransform[FrameCount];
 
         for (int i = 0; i < FrameCount; ++i)
         {
-            BakedRotations[i].x = Curves[0].BakedFrames[i];
-            BakedRotations[i].y = Curves[1].BakedFrames[i];
-            BakedRotations[i].z = Curves[2].BakedFrames[i];
-            BakedRotations[i].w = Curves[3].BakedFrames[i];
-            BakedPositions[i].x = Curves[4].BakedFrames[i];
-            BakedPositions[i].y = Curves[5].BakedFrames[i];
-            BakedPositions[i].z = Curves[6].BakedFrames[i];
+            BakedFrames[i].Rotation.x = Curves[0].BakedFrames[i];
+            BakedFrames[i].Rotation.y = Curves[1].BakedFrames[i];
+            BakedFrames[i].Rotation.z = Curves[2].BakedFrames[i];
+            BakedFrames[i].Rotation.w = Curves[3].BakedFrames[i];
+            BakedFrames[i].Position.x = Curves[4].BakedFrames[i];
+            BakedFrames[i].Position.y = Curves[5].BakedFrames[i];
+            BakedFrames[i].Position.z = Curves[6].BakedFrames[i];
         }
 
         // Do proper spherical linear interpolation between rotation key frames, overriding in between frames.
@@ -276,11 +279,11 @@ public class CraTransformCurve
             float frameDuration = nextRotFrameIdx - lastRotFrameIdx;
             if (frameDuration > 0f)
             {
-                ref Quaternion last = ref BakedRotations[lastRotFrameIdx];
-                ref Quaternion next = ref BakedRotations[nextRotFrameIdx];
+                quaternion last = BakedFrames[lastRotFrameIdx].Rotation;
+                quaternion next = BakedFrames[nextRotFrameIdx].Rotation;
 
                 float t = (i - lastRotFrameIdx) / frameDuration;
-                BakedRotations[i] = Quaternion.Slerp(last, next, t);
+                BakedFrames[i].Rotation = math.slerp(last, next, t).value;
             }
         }
 
@@ -291,7 +294,7 @@ public class CraTransformCurve
             Curves[i]._BakedKeyIndices = null;
         }
 
-        BakeMemoryConsumption = (ulong)BakedPositions.Length * sizeof(float) * 3 + (ulong)BakedRotations.Length * sizeof(float) * 4;
+        BakeMemoryConsumption = (ulong)BakedFrames.Length * sizeof(float) * 7;
     }
 }
 
@@ -301,17 +304,9 @@ public class CraClip
     public float Fps { get; private set; } = -1f;    // -1 => not yet baked
     public int FrameCount { get; private set; } = 0;
     public CraBone[] Bones { get; private set; }
+    public Dictionary<int, int> BoneHashToIdx { get; private set; } = new Dictionary<int, int>();
 
-    Dictionary<int, int> BoneHashToIdx = new Dictionary<int, int>();
 
-    // in bytes
-    public ulong BakeMemoryConsumption { get; private set; }
-    public static ulong GlobalBakeMemoryConsumption { get; private set; }
-
-    ~CraClip()
-    {
-        GlobalBakeMemoryConsumption -= BakeMemoryConsumption;
-    }
 
     public void SetBones(CraBone[] bones)
     {
@@ -355,8 +350,6 @@ public class CraClip
             return;
         }
 
-        GlobalBakeMemoryConsumption -= BakeMemoryConsumption;
-        BakeMemoryConsumption = 0;
         FrameCount = 0;
         Fps = fps;
 
@@ -368,186 +361,98 @@ public class CraClip
         for (int i = 0; i < Bones.Length; ++i)
         {
             Bones[i].Curve.Bake(Fps, FrameCount);
-            BakeMemoryConsumption += Bones[i].Curve.BakeMemoryConsumption;
         }
-
-        GlobalBakeMemoryConsumption += BakeMemoryConsumption;
     }
 }
 
 public class CraPlayer
 {
-    public bool Looping = false;
-    public float PlaybackSpeed { get; private set; } = 1f;
-    public bool Finished { get; private set; }
-    public float Duration { get; private set; }
-    public bool IsPlaying { get; private set; }
-    public float Playback { get; private set; }
+    CraHandle PlayerHandle;
 
 
-    CraClip Clip;
-    Transform[] AssignedBones;
-    int FrameCount;
-    float Transition;
+    CraPlayer() { }
 
-    // Contains all indices of 'AssignedBones' slots that are not null.
-    // A slot in 'AssignedBones' can be null, if the clip animates a bone that
-    // hasn't been found in the assigned skeleton.
-    int[] AssignedBoneIndices;
-
-    // Map a bone hash to a specific index of 'AssignedBones'
-    Dictionary<int, int> HashToBoneIdx = new Dictionary<int, int>();
-
+    public static CraPlayer CreateNew()
+    {
+        return new CraPlayer
+        {
+            PlayerHandle = CraPlaybackManager.Instance.PlayerNew()
+        };
+    }
 
     public void SetClip(CraClip clip)
     {
-        Debug.Assert(clip != null);
-
-        // A clip animates certain bones. Assign each of those bones an index we can later lookup
-        HashToBoneIdx.Clear();
-        for (int i = 0; i < clip.Bones.Length; ++i)
-        {
-            HashToBoneIdx.Add(clip.Bones[i].BoneHash, i);
-        }
-        Clip = clip;
-        FrameCount = clip.FrameCount;
-        Duration = FrameCount / clip.Fps;
+        CraPlaybackManager.Instance.PlayerSetClip(PlayerHandle, clip);
     }
 
     public void Assign(Transform root, CraMask? mask=null)
     {
-        Debug.Assert(root != null);
+        CraPlaybackManager.Instance.PlayerAssign(PlayerHandle, root, mask);
+    }
 
-        if (CraSettings.BoneHashFunction == null)
-        {
-            throw new Exception("CraSettings.BoneHashFunction is not assigned! You need to assign a custom hash function!");
-        }
-        if (Clip == null)
-        {
-            Debug.LogError($"Cannot assign Transform '{root.name}' to CraPlayer! No clip(s) set!");
-            return;
-        }
-
-        AssignedBones = new Transform[HashToBoneIdx.Count];
-        AssignInternal(root, mask);
-
-        // Store assigned indices so we don't have to do a null check
-        // for each bone in 'AssignedBones' for every single evaluation.
-        List<int> assignedIndices = new List<int>();
-        for (int i = 0; i < AssignedBones.Length; ++i)
-        {
-            if (AssignedBones[i] != null)
-            {
-                assignedIndices.Add(i);
-            }
-        }
-        AssignedBoneIndices = assignedIndices.ToArray();
-
-        EvaluateFrame(0f);
+    public void CaptureBones()
+    {
+        CraPlaybackManager.Instance.PlayerCaptureBones(PlayerHandle);
     }
 
     public void EvaluateFrame(float timePos)
     {
-        Reset();
-        Playback = Mathf.Clamp(timePos, 0f, Duration - 0.001f);
-        Transition = 1f;
-        Evaluate();
-    }
-
-    void Evaluate()
-    {
-        float frameNo = Playback * Clip.Fps;
-        int frameIdx = Mathf.FloorToInt(frameNo);
-        for (int i = 0; i < AssignedBoneIndices.Length; ++i)
-        {
-            int boneIdx = AssignedBoneIndices[i];
-            //AssignedBones[boneIdx].localPosition = Clip.Bones[boneIdx].Curve.BakedPositions[frameIdx];
-            //AssignedBones[boneIdx].localRotation = Clip.Bones[boneIdx].Curve.BakedRotations[frameIdx];
-
-            AssignedBones[boneIdx].localPosition = Vector3.Lerp(
-                AssignedBones[boneIdx].localPosition,
-                Clip.Bones[boneIdx].Curve.BakedPositions[frameIdx],
-                Transition
-            );
-
-            AssignedBones[boneIdx].localRotation = Quaternion.Slerp(
-                AssignedBones[boneIdx].localRotation,
-                Clip.Bones[boneIdx].Curve.BakedRotations[frameIdx],
-                Transition
-            );
-        }
+        CraPlaybackManager.Instance.PlayerEvaluateFrame(PlayerHandle, timePos);
     }
 
     public void Reset()
     {
-        Finished = false;
-        Playback = 0f;
-        IsPlaying = false;
+        CraPlaybackManager.Instance.PlayerReset(PlayerHandle);
+    }
+
+    public bool IsPlaying()
+    {
+        return CraPlaybackManager.Instance.PlayerIsPlaying(PlayerHandle);
+    }
+
+    public float GetDuration()
+    {
+        return CraPlaybackManager.Instance.PlayerGetDuration(PlayerHandle);
     }
 
     public void Play(bool transit=false)
     {
-        Playback = 0f;
-        IsPlaying = true;
-        Transition = transit ? 0f : 1f;
+        CraPlaybackManager.Instance.PlayerPlay(PlayerHandle, transit);
+    }
+
+    public float GetPlayback()
+    {
+        return CraPlaybackManager.Instance.PlayerGetPlayback(PlayerHandle);
+    }
+
+    public float GetPlaybackSpeed()
+    {
+        return CraPlaybackManager.Instance.PlayerGetPlaybackSpeed(PlayerHandle);
     }
 
     public void SetPlaybackSpeed(float speed)
     {
-        PlaybackSpeed = Mathf.Clamp01(speed);
+        CraPlaybackManager.Instance.PlayerSetPlaybackSpeed(PlayerHandle, speed);
     }
 
     public void ResetTransition()
     {
-        Transition = 0f;
+        CraPlaybackManager.Instance.PlayerResetTransition(PlayerHandle);
     }
 
-    public void Update(float deltaTime)
+    public bool IsLooping()
     {
-        if (!IsPlaying) return;
-
-        Playback += deltaTime * PlaybackSpeed;
-        if (Playback >= Duration)
-        {
-            if (!Looping)
-            {
-                Playback = Duration - 0.001f;
-                IsPlaying = false;
-                Finished = true;
-            }
-            else
-            {
-                Playback = 0;
-            }
-        }
-
-        Transition = Mathf.Clamp01(Transition + (deltaTime / CraSettings.TRANSITION_TIME));
-        Evaluate();
+        return CraPlaybackManager.Instance.PlayerIsLooping(PlayerHandle);
     }
 
-    void AssignInternal(Transform root, CraMask? mask = null, bool maskedChild=false)
+    public void SetLooping(bool loop)
     {
-        int boneHash = CraSettings.BoneHashFunction(root.name);
-        bool isMasked = false;
-        if (HashToBoneIdx.TryGetValue(boneHash, out int boneIdx))
-        {
-            if (mask.HasValue)
-            {
-                if (maskedChild || mask.Value.BoneHashes.Contains(boneHash))
-                {
-                    AssignedBones[boneIdx] = root;
-                    isMasked = mask.Value.MaskChildren;
-                }
-            }
-            else
-            {
-                AssignedBones[boneIdx] = root;
-            }
-        }
-        for (int i = 0; i < root.childCount; ++i)
-        {
-            AssignInternal(root.GetChild(i), mask, isMasked);
-        }
+        CraPlaybackManager.Instance.PlayerSetLooping(PlayerHandle, loop);
+    }
+
+    public bool IsFinished()
+    {
+        return CraPlaybackManager.Instance.PlayerIsFinished(PlayerHandle);
     }
 }
 
@@ -555,7 +460,7 @@ public static class CraSettings
 {
     public const int    STATE_NONE = -1;
     public const int    STATE_MAX_LAYERS = 2;
-    public const int    MAX_STATES = 32;
+    public const int    MAX_STATES = 16;
     public const float  PLAYBACK_LERP_THRESHOLD = 0.5f;
     public const float  TRANSITION_TIME = 0.5f;
 
