@@ -11,6 +11,23 @@ using UnityEngine.Jobs;
 using UnityEditor;
 #endif
 
+public static class CraSettings
+{
+    public const int STATE_NONE = -1;
+    public const int MAX_LAYERS = 2;
+    public const int MAX_STATES_PER_LAYER = 16;
+    public const float PLAYBACK_LERP_THRESHOLD = 0.5f;
+    public const float TRANSITION_TIME = 0.5f;
+
+    public const int MAX_PlayerData = 16384;
+    public const int MAX_ClipData = 256;
+    public const int MAX_BakedClipTransforms = 65536;
+    public const int MAX_BoneData = 65536;
+    public const int MAX_Bones = 65536;
+
+    public static Func<string, int> BoneHashFunction;
+}
+
 public class CraPlaybackManager : MonoBehaviour
 {
     public static CraPlaybackManager Instance { get; private set; }
@@ -32,7 +49,7 @@ public class CraPlaybackManager : MonoBehaviour
         public int4 FrameIndex;
 
         // For Debug reasons only
-        public const int SIZE =
+        public const ulong SIZE =
             sizeof(int) * 4 +
             sizeof(bool) * 4 +
             sizeof(bool) * 4 +
@@ -53,6 +70,12 @@ public class CraPlaybackManager : MonoBehaviour
         // Offset into BakedClipTransforms memory
         public int FrameOffset;
         public int FrameCount;
+
+        // For Debug reasons only
+        public const ulong SIZE =
+            sizeof(float) +
+            sizeof(int) +
+            sizeof(int);
     }
 
     // Describes what player and clip this particular bone is assigned to
@@ -67,6 +90,11 @@ public class CraPlaybackManager : MonoBehaviour
         // into BakedClipTransforms not only per Clip, but
         // also per Bone within a Clip
         public int ClipBoneIndex;
+
+        // For Debug reasons only
+        public const ulong SIZE =
+            sizeof(int) +
+            sizeof(int);
     }
 
 
@@ -82,6 +110,8 @@ public class CraPlaybackManager : MonoBehaviour
         // Read + Write
         public NativeArray<CraPlayerData> PlayerData;
 
+        const float TransitionSpeed = 2f;
+
         public void Execute(int index)
         {
             CraPlayerData player = PlayerData[index];
@@ -89,7 +119,7 @@ public class CraPlaybackManager : MonoBehaviour
             //player.Playback += DeltaTime * player.PlaybackSpeed;
             //bool4 end = player.Playback >= player.Duration;
 
-            player.Transition = math.clamp(player.Transition + DeltaTime, float4.zero, new float4(1f, 1f, 1f, 1f));
+            player.Transition = math.clamp(player.Transition + DeltaTime * TransitionSpeed, float4.zero, new float4(1f, 1f, 1f, 1f));
 
             // TODO: This is BAAAAAAAAAAD
             for (int i = 0; i < 4; ++i)
@@ -163,9 +193,8 @@ public class CraPlaybackManager : MonoBehaviour
             int clipFrameOffset = ClipData[clipIdx].FrameOffset;
             int localFrameIndex = player.FrameIndex[playerSubIdx];
 
-            int frameIndex = clipFrameOffset + (boneIndex * clipFrameCount) + localFrameIndex;
-
             float transition = player.Transition[playerSubIdx];
+            int frameIndex = clipFrameOffset + (boneIndex * clipFrameCount) + localFrameIndex;
 
             CraTransform frameTransform = BakedClipTransforms[frameIndex];
 
@@ -182,6 +211,10 @@ public class CraPlaybackManager : MonoBehaviour
             );
         }
     }
+
+#if UNITY_EDITOR
+    public CraStatistics Statistics { get; private set; } = new CraStatistics();
+#endif
 
     // Player data memory
     CraDataContainer<CraPlayerData> PlayerData;
@@ -212,7 +245,6 @@ public class CraPlaybackManager : MonoBehaviour
 
     // For each player, provide a list of bone indices into BoneData & Bones
     List<List<int>> PlayerAssignedBones = new List<List<int>>();
-
 
 
     public CraHandle PlayerNew()
@@ -289,16 +321,6 @@ public class CraPlaybackManager : MonoBehaviour
             boneData.ClipBoneIndex = BonePlayerClipIndices[boneIdx][clipIdx];
             BoneData.Set(boneIdx, ref boneData);
         }
-    }
-
-    public void PlayerEvaluateFrame(CraHandle player, float timePos)
-    {
-        PlayerReset(player);
-
-        (CraPlayerData data, int subIdex) = PlayerGet(player);
-        data.Playback[subIdex] = Mathf.Clamp(timePos, 0f, data.Duration[subIdex] - 0.001f);
-        data.Transition[subIdex] = 1f;
-        PlayerSet(player, ref data);
     }
 
     public void PlayerReset(CraHandle player)
@@ -402,7 +424,8 @@ public class CraPlaybackManager : MonoBehaviour
 
         CraClip clip = KnownClips[clipIdx];
         PlayerAssignInternal(assignedBones, clip, clipIdx, root, mask);
-        PlayerEvaluateFrame(player, 0f);
+
+        data.Transition[subIdex] = 1f;
         PlayerSet(player, ref data);
 
         PlayerCaptureBones(player);
@@ -505,11 +528,28 @@ public class CraPlaybackManager : MonoBehaviour
     {
         Instance = this;
 
-        PlayerData = new CraDataContainer<CraPlayerData>(16384);
-        ClipData = new CraDataContainer<CraClipData>(1024);
-        BakedClipTransforms = new CraDataContainer<CraTransform>(65536);
-        BoneData = new CraDataContainer<CraBoneData>(65536);
-        Bones = new TransformAccessArray(65536);
+        PlayerData = new CraDataContainer<CraPlayerData>(CraSettings.MAX_PlayerData);
+        ClipData = new CraDataContainer<CraClipData>(CraSettings.MAX_ClipData);
+        BakedClipTransforms = new CraDataContainer<CraTransform>(CraSettings.MAX_BakedClipTransforms);
+        BoneData = new CraDataContainer<CraBoneData>(CraSettings.MAX_BoneData);
+        Bones = new TransformAccessArray(CraSettings.MAX_Bones);
+
+#if UNITY_EDITOR
+        Statistics.PlayerData.MaxElements = CraSettings.MAX_PlayerData;
+        Statistics.PlayerData.MaxBytes = CraPlayerData.SIZE * CraSettings.MAX_PlayerData;
+
+        Statistics.ClipData.MaxElements = CraSettings.MAX_ClipData;
+        Statistics.ClipData.MaxBytes = CraClipData.SIZE * CraSettings.MAX_ClipData;
+
+        Statistics.BakedClipTransforms.MaxElements = CraSettings.MAX_BakedClipTransforms;
+        Statistics.BakedClipTransforms.MaxBytes = CraTransform.SIZE * CraSettings.MAX_BakedClipTransforms;
+
+        Statistics.BoneData.MaxElements = CraSettings.MAX_BoneData;
+        Statistics.BoneData.MaxBytes = CraBoneData.SIZE * CraSettings.MAX_BoneData;
+
+        Statistics.Bones.MaxElements = CraSettings.MAX_Bones;
+        Statistics.Bones.MaxBytes = (sizeof(bool) + sizeof(int) * 2) * CraSettings.MAX_Bones;
+#endif
 
         PlayerJob = new CraPlayJob()
         {
@@ -548,6 +588,23 @@ public class CraPlaybackManager : MonoBehaviour
         // Update ALL players FIRST before evaluating ALL bones!
         JobHandle boneJob = BoneJob.Schedule(Bones, playerJob);
         boneJob.Complete();
+
+#if UNITY_EDITOR
+        Statistics.PlayerData.CurrentElements = PlayerData.GetNumAllocated();
+        Statistics.PlayerData.CurrentBytes = CraPlayerData.SIZE * (ulong)PlayerData.GetNumAllocated();
+
+        Statistics.ClipData.CurrentElements = ClipData.GetNumAllocated();
+        Statistics.ClipData.CurrentBytes = CraClipData.SIZE * (ulong)ClipData.GetNumAllocated();
+
+        Statistics.BakedClipTransforms.CurrentElements = BakedClipTransforms.GetNumAllocated();
+        Statistics.BakedClipTransforms.CurrentBytes = CraTransform.SIZE * (ulong)BakedClipTransforms.GetNumAllocated();
+
+        Statistics.BoneData.CurrentElements = BoneData.GetNumAllocated();
+        Statistics.BoneData.CurrentBytes = CraBoneData.SIZE * (ulong)BoneData.GetNumAllocated();
+
+        Statistics.Bones.CurrentElements = Bones.length;
+        Statistics.Bones.CurrentBytes = (sizeof(bool) + sizeof(int) * 2) * (ulong)Bones.length;
+#endif
     }
 
     void OnDestroy()
