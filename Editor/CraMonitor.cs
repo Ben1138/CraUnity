@@ -32,21 +32,21 @@ public class CraMonitor : EditorWindow
 
     void OnGUI()
     {
-        string memStr = "";
-        if (CraClip.GlobalBakeMemoryConsumption >= 1000)
-        {
-            memStr = (CraClip.GlobalBakeMemoryConsumption / 1000f).ToString() + " KB";
-        }
-        else if (CraClip.GlobalBakeMemoryConsumption >= 1000000)
-        {
-            memStr = (CraClip.GlobalBakeMemoryConsumption / 1000000f).ToString() + " MB";
-        }
-        else
-        {
-            memStr = CraClip.GlobalBakeMemoryConsumption.ToString() + " Bytes";
-        }
-        EditorGUILayout.LabelField("Animation Memory", memStr);
-        EditorGUILayout.Space();
+        //string memStr = "";
+        //if (CraClip.GlobalBakeMemoryConsumption >= 1000)
+        //{
+        //    memStr = (CraClip.GlobalBakeMemoryConsumption / 1000f).ToString() + " KB";
+        //}
+        //else if (CraClip.GlobalBakeMemoryConsumption >= 1000000)
+        //{
+        //    memStr = (CraClip.GlobalBakeMemoryConsumption / 1000000f).ToString() + " MB";
+        //}
+        //else
+        //{
+        //    memStr = CraClip.GlobalBakeMemoryConsumption.ToString() + " Bytes";
+        //}
+        //EditorGUILayout.LabelField("Animation Memory", memStr);
+        //EditorGUILayout.Space();
 
         if (Selection.activeGameObject == null)
         {
@@ -67,16 +67,16 @@ public class CraMonitor : EditorWindow
         if (state != null)
         {
             EditorGUILayout.LabelField("Playback Speed");
-            state.SetPlaybackSpeed(EditorGUILayout.Slider(state.PlaybackSpeed, 0f, 10f));
+            state.SetPlaybackSpeed(EditorGUILayout.Slider(state.GetPlaybackSpeed(), 0f, 10f));
 
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Looping");
-            state.Looping = EditorGUILayout.Toggle(state.Looping);
+            state.SetLooping(EditorGUILayout.Toggle(state.IsLooping()));
 
             EditorGUILayout.Space();
-            if (GUILayout.Button(state.IsPlaying ? "Stop" : "Play"))
+            if (GUILayout.Button(state.IsPlaying() ? "Stop" : "Play"))
             {
-                if (state.IsPlaying)
+                if (state.IsPlaying())
                 {
                     state.Reset();
                 }
@@ -87,8 +87,8 @@ public class CraMonitor : EditorWindow
             }
 
             EditorGUILayout.Space();
-            float pos = EditorGUILayout.Slider(state.Playback, 0f, state.Duration);
-            if (pos != state.Playback)
+            float pos = EditorGUILayout.Slider(state.GetPlayback(), 0f, state.GetDuration());
+            if (pos != state.GetPlayback())
             {
                 state.Reset();
                 state.EvaluateFrame(pos);
