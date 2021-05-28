@@ -395,11 +395,6 @@ public class CraPlayer
         CraPlaybackManager.Instance.PlayerCaptureBones(PlayerHandle);
     }
 
-    public void EvaluateFrame(float timePos)
-    {
-        CraPlaybackManager.Instance.PlayerEvaluateFrame(PlayerHandle, timePos);
-    }
-
     public void Reset()
     {
         CraPlaybackManager.Instance.PlayerReset(PlayerHandle);
@@ -454,15 +449,4 @@ public class CraPlayer
     {
         return CraPlaybackManager.Instance.PlayerIsFinished(PlayerHandle);
     }
-}
-
-public static class CraSettings
-{
-    public const int    STATE_NONE = -1;
-    public const int    STATE_MAX_LAYERS = 2;
-    public const int    MAX_STATES = 16;
-    public const float  PLAYBACK_LERP_THRESHOLD = 0.5f;
-    public const float  TRANSITION_TIME = 0.5f;
-
-    public static Func<string, int> BoneHashFunction;
 }

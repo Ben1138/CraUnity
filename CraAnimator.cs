@@ -19,7 +19,7 @@ public class CraLayer
     public Action OnTransitFinished;
     public Action OnStateFinished;
 
-    public CraPlayer[] States { get; private set; } = new CraPlayer[CraSettings.MAX_STATES];
+    public CraPlayer[] States { get; private set; } = new CraPlayer[CraSettings.MAX_STATES_PER_LAYER];
     bool OnStateFinishedInvoked = false;
 
     static int COUNT = 0;
@@ -30,7 +30,7 @@ public class CraLayer
         {
             CurrentStateIdx = 0;
         }
-        for (int i = 0; i < CraSettings.MAX_STATES; ++i)
+        for (int i = 0; i < CraSettings.MAX_STATES_PER_LAYER; ++i)
         {
             if (States[i] == null)
             {
@@ -39,7 +39,7 @@ public class CraLayer
             }
         }
 
-        Debug.LogError($"No more state slots available! Consider increasing the max slots size of {CraSettings.MAX_STATES}");
+        Debug.LogError($"No more state slots available! Consider increasing the max slots size of {CraSettings.MAX_STATES_PER_LAYER}");
         return CraSettings.STATE_NONE;
     }
 
@@ -54,7 +54,7 @@ public class CraLayer
 
     public bool RemoveState(int stateIdx)
     {
-        Debug.Assert(stateIdx >= 0 && stateIdx < CraSettings.MAX_STATES);
+        Debug.Assert(stateIdx >= 0 && stateIdx < CraSettings.MAX_STATES_PER_LAYER);
         if (States[stateIdx] == null)
         {
             return false;
@@ -67,7 +67,7 @@ public class CraLayer
     {
         if (stateIdx == CurrentStateIdx) return;
 
-        Debug.Assert(stateIdx < CraSettings.MAX_STATES);
+        Debug.Assert(stateIdx < CraSettings.MAX_STATES_PER_LAYER);
         if (CurrentStateIdx != CraSettings.STATE_NONE)
         {
             States[CurrentStateIdx].Reset();
@@ -75,6 +75,7 @@ public class CraLayer
         CurrentStateIdx = stateIdx;
         if (stateIdx != CraSettings.STATE_NONE)
         {
+            States[stateIdx].CaptureBones();
             States[stateIdx].Play(true);
             OnStateFinishedInvoked = false;
         }
@@ -106,10 +107,6 @@ public class CraLayer
                 OnStateFinishedInvoked = true;
             }
             Profiler.EndSample();
-
-            //Profiler.BeginSample("CaptureBones");
-            state.CaptureBones();
-            //Profiler.EndSample();
         }
     }
 }
@@ -119,7 +116,7 @@ public class CraAnimator : MonoBehaviour
     public Action<int> OnTransitFinished;
     public Action<int> OnStateFinished;
 
-    protected CraLayer[] Layers = new CraLayer[CraSettings.STATE_MAX_LAYERS];
+    protected CraLayer[] Layers = new CraLayer[CraSettings.MAX_LAYERS];
 
 
     public int AddState(int layer, CraPlayer state)
@@ -161,18 +158,18 @@ public class CraAnimator : MonoBehaviour
 
     public void Tick(float deltaTime)
     {
-        for (int layer = 0; layer < CraSettings.STATE_MAX_LAYERS; ++layer)
+        for (int layer = 0; layer < CraSettings.MAX_LAYERS; ++layer)
         {
-            Profiler.BeginSample("Tick Layer " + layer);
+            //Profiler.BeginSample("Tick Layer " + layer);
             Layers[layer].Tick(deltaTime);
-            Profiler.EndSample();
+            //Profiler.EndSample();
         }
     }
 
     public CraPlayer[] GetAllStates()
     {
         List<CraPlayer> states = new List<CraPlayer>();
-        for (int layerIdx = 0; layerIdx < CraSettings.STATE_MAX_LAYERS; ++layerIdx)
+        for (int layerIdx = 0; layerIdx < CraSettings.MAX_LAYERS; ++layerIdx)
         {
             for (int stateIdx = 0; stateIdx < Layers[layerIdx].States.Length; ++stateIdx)
             {
@@ -187,7 +184,7 @@ public class CraAnimator : MonoBehaviour
 
     void Awake()
     {
-        for (int layer = 0; layer < CraSettings.STATE_MAX_LAYERS; ++layer)
+        for (int layer = 0; layer < CraSettings.MAX_LAYERS; ++layer)
         {
             int idx = layer;
             Layers[layer] = new CraLayer();
@@ -222,4 +219,26 @@ public struct CraTransform
     //    CraTransform other = (CraTransform)obj;
     //    return (Vector3)other.Position == (Vector3)Position && new Quaternion(other.Rotation.x, other.Rotation.y, other.Rotation.z, other.Rotation.w) == new Quaternion(Rotation.x, Rotation.y, Rotation.z, Rotation.w);
     //}
+
+    // For Debug reasons only
+    public const ulong SIZE =
+        sizeof(float) * 3 +
+        sizeof(float) * 4;
+}
+
+public struct CraMeasure
+{
+    public int CurrentElements;
+    public int MaxElements;
+    public ulong CurrentBytes;
+    public ulong MaxBytes;
+}
+
+public class CraStatistics
+{
+    public CraMeasure PlayerData;
+    public CraMeasure ClipData;
+    public CraMeasure BakedClipTransforms;
+    public CraMeasure BoneData;
+    public CraMeasure Bones;
 }
