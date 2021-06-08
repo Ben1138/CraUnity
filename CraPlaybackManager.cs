@@ -110,7 +110,8 @@ public class CraPlaybackManager : MonoBehaviour
         // Read + Write
         public NativeArray<CraPlayerData> PlayerData;
 
-        const float TransitionSpeed = 2f;
+        // Transition time in seconds
+        const float TransitionSpeed = 0.3f;
 
         public void Execute(int index)
         {
@@ -119,7 +120,7 @@ public class CraPlaybackManager : MonoBehaviour
             //player.Playback += DeltaTime * player.PlaybackSpeed;
             //bool4 end = player.Playback >= player.Duration;
 
-            player.Transition = math.clamp(player.Transition + DeltaTime * TransitionSpeed, float4.zero, new float4(1f, 1f, 1f, 1f));
+            player.Transition = math.clamp(player.Transition + DeltaTime / TransitionSpeed, float4.zero, new float4(1f, 1f, 1f, 1f));
 
             // TODO: This is BAAAAAAAAAAD
             for (int i = 0; i < 4; ++i)
