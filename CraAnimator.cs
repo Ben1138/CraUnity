@@ -22,14 +22,9 @@ public class CraLayer
     public CraPlayer[] States { get; private set; } = new CraPlayer[CraSettings.MAX_STATES_PER_LAYER];
     bool OnStateFinishedInvoked = false;
 
-    static int COUNT = 0;
 
     public int AddState(CraPlayer state)
     {
-        if (States[0] == null)
-        {
-            CurrentStateIdx = 0;
-        }
         for (int i = 0; i < CraSettings.MAX_STATES_PER_LAYER; ++i)
         {
             if (States[i] == null)
@@ -78,6 +73,14 @@ public class CraLayer
             States[stateIdx].CaptureBones();
             States[stateIdx].Play(true);
             OnStateFinishedInvoked = false;
+        }
+    }
+
+    public void RestartState()
+    {
+        if (CurrentStateIdx != CraSettings.STATE_NONE)
+        {
+            States[CurrentStateIdx].Play(true);
         }
     }
 
@@ -154,6 +157,11 @@ public class CraAnimator : MonoBehaviour
     public void SetPlaybackSpeed(int layer, int stateIdx, float playbackSpeed)
     {
         Layers[layer].SetPlaybackSpeed(stateIdx, playbackSpeed);
+    }
+
+    public void RestartState(int layer)
+    {
+        Layers[layer].RestartState();
     }
 
     public void Tick(float deltaTime)

@@ -90,18 +90,26 @@ public class CraCurve
     public int GetEstimatedFrameCount(float fps)
     {
         float endTime = EditKeys[EditKeys.Count - 1].Time;
-        float timeStep = 1f / fps;
-        return Mathf.CeilToInt(endTime / timeStep);
+        return Mathf.Max(Mathf.CeilToInt(endTime * fps), 1);
     }
 
     public void Bake(float fps, int frameCount, CraInterpMethod method)
     {
+        if (fps <= 0)
+        {
+            Debug.LogError($"Cannot bake curve with {fps} fps!");
+            return;
+        }
+        if (frameCount <= 0)
+        {
+            Debug.LogError($"Cannot bake curve with {frameCount} frames!");
+            return;
+        }
         if (EditKeys.Count == 0)
         {
             Debug.LogError("Cannot bake empty transform curve!");
             return;
         }
-
         if (BakedFrames != null)
         {
             Debug.LogError("Cannot bake twice!");
@@ -199,6 +207,16 @@ public class CraTransformCurve
 
     public void Bake(float fps, int frameCount)
     {
+        if (fps <= 0)
+        {
+            Debug.LogError($"Cannot bake curve with {fps} fps!");
+            return;
+        }
+        if (frameCount <= 0)
+        {
+            Debug.LogError($"Cannot bake curve with {frameCount} frames!");
+            return;
+        }
         if (BakedFrames != null)
         {
             Debug.LogError("Cannot bake twice!");
@@ -338,12 +356,16 @@ public class CraClip
 
     public void Bake(float fps)
     {
+        if (fps <= 0)
+        {
+            Debug.LogError($"Cannot bake curve with {fps} fps!");
+            return;
+        }
         if (Bones == null)
         {
             Debug.LogError("Cannot bake empty clip!");
             return;
         }
-
         if (Fps > -1)
         {
             Debug.LogError("Cannot bake twice!");
