@@ -113,24 +113,52 @@ public class CraPlaybackManager
                 CraClipData clip = ClipData[player.ClipIndex[i]];
                 player.Playback[i] += DeltaTime * player.PlaybackSpeed[i];
 
-                if (player.Playback[i] >= player.Duration[i])
+
+                
+
+                if (player.PlaybackSpeed[i] > 0f)
                 {
-                    if (!player.Looping[i])
+                    if (player.Playback[i] >= player.Duration[i])
                     {
-                        player.Playback[i] = player.Duration[i] - 0.001f;
-                        player.IsPlaying[i] = false;
-                        player.Finished[i] = true;
+                        if (!player.Looping[i])
+                        {
+                            player.Playback[i] = player.Duration[i] - 0.001f;
+                            player.IsPlaying[i] = false;
+                            player.Finished[i] = true;
+                        }
+                        else
+                        {
+                            player.Playback[i] = 0;
+                            player.FrameIndex[i] = 0;
+                            player.Finished[i] = false;
+                        }
                     }
                     else
                     {
-                        player.Playback[i] = 0;
-                        player.FrameIndex[i] = 0;
-                        player.Finished[i] = false;
+                        player.FrameIndex[i] = (int)math.floor(clip.FPS * player.Playback[i]);
                     }
                 }
-                else
+                else 
                 {
-                    player.FrameIndex[i] = (int)math.floor(clip.FPS * player.Playback[i]);
+                    if (player.Playback[i] <= 0f)
+                    {
+                        if (!player.Looping[i])
+                        {
+                            player.Playback[i] = 0.001f;
+                            player.IsPlaying[i] = false;
+                            player.Finished[i] = true;
+                        }
+                        else
+                        {
+                            player.Playback[i] = player.Duration[i];
+                            player.FrameIndex[i] = (int)math.floor(clip.FPS * player.Duration[i]);
+                            player.Finished[i] = false;
+                        }
+                    }
+                    else
+                    {
+                        player.FrameIndex[i] = (int)math.floor(clip.FPS * player.Playback[i]);
+                    }    
                 }
             }
 
@@ -387,7 +415,14 @@ public class CraPlaybackManager
     public void PlayerPlay(CraHandle player, bool transit = false)
     {
         (CraPlayerData data, int subIdex) = PlayerGet(player);
-        data.Playback[subIdex] = 0f;
+        if (data.PlaybackSpeed[subIdex] > 0f)
+        {
+            data.Playback[subIdex] = .001f;
+        }
+        else 
+        {
+            data.Playback[subIdex] = data.Duration[subIdex] - .001f;
+        }
         data.IsPlaying[subIdex] = true;
         data.Transition[subIdex] = transit ? 0f : 1f;
         PlayerSet(player, ref data);
@@ -402,7 +437,7 @@ public class CraPlaybackManager
     public void PlayerSetPlaybackSpeed(CraHandle player, float speed)
     {
         (CraPlayerData data, int subIdex) = PlayerGet(player);
-        data.PlaybackSpeed[subIdex] = Mathf.Max(speed, 0.01f);
+        data.PlaybackSpeed[subIdex] = speed;//Mathf.Max(speed, 0.01f);
         PlayerSet(player, ref data);
     }
 
