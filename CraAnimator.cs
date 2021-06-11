@@ -132,12 +132,22 @@ public class CraAnimator : MonoBehaviour
 
     public int AddState(int layer, CraPlayer state)
     {
+        if (state == null)
+        {
+            return CraSettings.STATE_NONE;
+        }
+
         return Layers[layer].AddState(state);
     }
 
     public CraPlayer GetCurrentState(int layer)
     {
         return Layers[layer].GetCurrentState();
+    }
+
+    public int GetCurrentStateIdx(int layer)
+    {
+        return Layers[layer].CurrentStateIdx;
     }
 
     public bool RemoveState(int layer, int stateIdx)

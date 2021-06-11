@@ -15,15 +15,15 @@ public static class CraSettings
 {
     public const int STATE_NONE = -1;
     public const int MAX_LAYERS = 2;
-    public const int MAX_STATES_PER_LAYER = 16;
+    public const int MAX_STATES_PER_LAYER = 64;
     public const float PLAYBACK_LERP_THRESHOLD = 0.5f;
     public const float TRANSITION_TIME = 0.5f;
 
     public const int MAX_PlayerData = 16384;
     public const int MAX_ClipData = 256;
-    public const int MAX_BakedClipTransforms = 65536;
-    public const int MAX_BoneData = 65536;
-    public const int MAX_Bones = 65536;
+    public const int MAX_BakedClipTransforms = 65535 * 4;
+    public const int MAX_BoneData = 65535 * 4;
+    public const int MAX_Bones = 65535 * 4;
 
     public static Func<string, int> BoneHashFunction;
 }
