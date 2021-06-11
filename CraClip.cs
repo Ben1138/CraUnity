@@ -389,7 +389,7 @@ public class CraClip
 
 public class CraPlayer
 {
-    CraHandle PlayerHandle;
+    public CraHandle PlayerHandle { get; private set; }
 
 
     CraPlayer() { }

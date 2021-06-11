@@ -11,8 +11,9 @@ public class CraMonitor : EditorWindow
 
     string[] Abr = new string[] { "Bytes", "KB", "MB", "GB", "TB" };
 
+
     [MenuItem("Cra/Runtime Monitor")]
-    public static void OpenLuaEditor()
+    public static void OpenRuntimeMonitor()
     {
         CraMonitor window = GetWindow<CraMonitor>();
         window.Show();
@@ -95,6 +96,12 @@ public class CraMonitor : EditorWindow
         CraPlayer state = anim.GetCurrentState(ViewLayer);
         if (state != null)
         {
+            EditorGUILayout.LabelField("Player Handle", state.PlayerHandle.Handle.ToString());
+            EditorGUILayout.Space();
+
+            EditorGUILayout.LabelField("State Idx", anim.GetCurrentStateIdx(ViewLayer).ToString());
+            EditorGUILayout.Space();
+
             EditorGUILayout.LabelField("Playback Speed");
             state.SetPlaybackSpeed(EditorGUILayout.Slider(state.GetPlaybackSpeed(), 0f, 10f));
 
