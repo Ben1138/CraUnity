@@ -76,6 +76,14 @@ public class CraLayer
         }
     }
 
+    public void CaptureBones()
+    {
+        if (CurrentStateIdx != CraSettings.STATE_NONE)
+        {
+            States[CurrentStateIdx].CaptureBones();
+        }
+    }
+
     public void RestartState()
     {
         if (CurrentStateIdx != CraSettings.STATE_NONE)
@@ -141,9 +149,12 @@ public class CraAnimator : MonoBehaviour
     {
         Layers[layer].SetState(stateIdx);
 
+        // if some layer in between gets removed (1.g. 1), the next layer
+        // below it (e.g. 0) should do a transition, since it now has
+        // potentially authority of more bones again
         if (stateIdx == CraSettings.STATE_NONE)
         {
-            for (int i = layer; i >= 0; --i)
+            for (int i = layer - 1; i >= 0; --i)
             {
                 if (Layers[i].CurrentStateIdx != CraSettings.STATE_NONE)
                 {
@@ -151,6 +162,12 @@ public class CraAnimator : MonoBehaviour
                     break;
                 }
             }
+        }
+
+        // rebuild the bone authority
+        for (int i = 0; i < CraSettings.MAX_LAYERS; ++i)
+        {
+            Layers[i].CaptureBones();
         }
     }
 
