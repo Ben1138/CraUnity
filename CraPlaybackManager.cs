@@ -248,6 +248,27 @@ public class CraPlaybackManager : MonoBehaviour
     List<List<int>> PlayerAssignedBones = new List<List<int>>();
 
 
+
+    public void Clear()
+    {
+        PlayerData.Clear();
+        PlayerCounter = 0;
+
+        BoneData.Clear();
+        Bones.SetTransforms(new Transform[] {});
+        
+        ClipData.Clear();
+        BakedClipTransforms.Clear();
+
+        KnownClipIndices.Clear();
+        KnownClips.Clear();
+
+        KnownBoneIndices.Clear();
+
+        BonePlayerClipIndices.Clear();
+        PlayerAssignedBones.Clear();
+    }
+
     public CraHandle PlayerNew()
     {
         if (PlayerCounter + 1 >= (PlayerData.GetCapacity() * 4))
@@ -567,13 +588,13 @@ public class CraPlaybackManager : MonoBehaviour
         };
 
 #if UNITY_EDITOR
-        EditorApplication.quitting += ClearData;
+        EditorApplication.quitting += Destroy;
 #endif
     }
 
-    void ClearData()
+    void Destroy()
     {
-        Debug.Log("Clearing animator manager data");
+        Debug.Log("Deleting all animator manager data");
         PlayerData.Delete();
         ClipData.Delete();
         BoneData.Delete();
@@ -610,7 +631,7 @@ public class CraPlaybackManager : MonoBehaviour
 
     void OnDestroy()
     {
-        ClearData();
+        Destroy();
     }
 }
 
