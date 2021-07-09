@@ -390,7 +390,7 @@ public class CraPlaybackManager : MonoBehaviour
     public void PlayerSetPlaybackSpeed(CraHandle player, float speed)
     {
         (CraPlayerData data, int subIdex) = PlayerGet(player);
-        data.PlaybackSpeed[subIdex] = Mathf.Clamp01(speed);
+        data.PlaybackSpeed[subIdex] = Mathf.Max(speed, 0.01f);
         PlayerSet(player, ref data);
     }
 
