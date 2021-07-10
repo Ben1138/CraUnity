@@ -19,8 +19,8 @@ public static class CraSettings
     public const float PLAYBACK_LERP_THRESHOLD = 0.5f;
     public const float TRANSITION_TIME = 0.5f;
 
-    public const int MAX_PlayerData = 512;
-    public const int MAX_ClipData = 512;
+    public const int MAX_PlayerData = 8192;
+    public const int MAX_ClipData = 256;
     public const int MAX_BakedClipTransforms = 65535 * 4;
     public const int MAX_BoneData = 65535 * 4;
     public const int MAX_Bones = 65535 * 4;
