@@ -11,29 +11,42 @@ using UnityEngine.Jobs;
 
 
 
-public class CraLayer
+public struct CraLayer
 {
-    public int CurrentStateIdx { get; private set; } = CraSettings.STATE_NONE;
-
     public Action OnTransitFinished;
     public Action OnStateFinished;
 
-    public CraPlayer[] States { get; private set; } = new CraPlayer[CraSettings.MAX_STATES_PER_LAYER];
-    bool OnStateFinishedInvoked = false;
+    public int CurrentStateIdx { get; private set; }
+    public CraPlayer[] States { get; private set; }
 
+    bool OnStateFinishedInvoked;
+
+
+    public static CraLayer CreateNew(int maxStateCount)
+    {
+        CraLayer layer = new CraLayer();
+        layer.States = new CraPlayer[maxStateCount];
+        layer.OnStateFinishedInvoked = false;
+        layer.CurrentStateIdx = CraSettings.STATE_NONE;
+        for (int i = 0; i < layer.States.Length; ++i)
+        {
+            layer.States[i] = CraPlayer.CreateEmpty();
+        }
+        return layer;
+    }
 
     public int AddState(CraPlayer state)
     {
-        for (int i = 0; i < CraSettings.MAX_STATES_PER_LAYER; ++i)
+        for (int i = 0; i < States.Length; ++i)
         {
-            if (States[i] == null)
+            if (!States[i].IsValid())
             {
                 States[i] = state;
                 return i;
             }
         }
 
-        Debug.LogError($"No more state slots available! Consider increasing the max slots size of {CraSettings.MAX_STATES_PER_LAYER}");
+        Debug.LogError($"No more state slots available! Consider increasing the max slots size of {States.Length}");
         return CraSettings.STATE_NONE;
     }
 
@@ -41,19 +54,20 @@ public class CraLayer
     {
         if (CurrentStateIdx != CraSettings.STATE_NONE)
         {
+            Debug.Assert(States[CurrentStateIdx].IsValid());
             return States[CurrentStateIdx];
         }
-        return null;
+        return CraPlayer.CreateEmpty();
     }
 
     public bool RemoveState(int stateIdx)
     {
-        Debug.Assert(stateIdx >= 0 && stateIdx < CraSettings.MAX_STATES_PER_LAYER);
-        if (States[stateIdx] == null)
+        Debug.Assert(stateIdx >= 0 && stateIdx < States.Length);
+        if (!States[stateIdx].IsValid())
         {
             return false;
         }
-        States[stateIdx] = null;
+        States[stateIdx] = CraPlayer.CreateEmpty();
         return true;
     }
 
@@ -61,7 +75,7 @@ public class CraLayer
     {
         if (stateIdx == CurrentStateIdx) return;
 
-        Debug.Assert(stateIdx < CraSettings.MAX_STATES_PER_LAYER);
+        Debug.Assert(stateIdx < States.Length);
         if (CurrentStateIdx != CraSettings.STATE_NONE)
         {
             States[CurrentStateIdx].Reset();
@@ -108,9 +122,6 @@ public class CraLayer
         {
             Profiler.BeginSample("Retrieve current state " + CurrentStateIdx);
             CraPlayer state = States[CurrentStateIdx];
-            Profiler.EndSample();
-
-            Profiler.BeginSample("Retrieve current state " + CurrentStateIdx);
             if (!OnStateFinishedInvoked && state.IsFinished())
             {
                 OnStateFinished?.Invoke();
@@ -121,17 +132,31 @@ public class CraLayer
     }
 }
 
-public class CraAnimator : MonoBehaviour
+public struct CraAnimator
 {
     public Action<int> OnTransitFinished;
     public Action<int> OnStateFinished;
 
-    protected CraLayer[] Layers = new CraLayer[CraSettings.MAX_LAYERS];
+    CraLayer[] Layers;
 
+
+    public CraAnimator CreateNew(int maxLayerCount, int maxStatesPerLayerCount)
+    {
+        CraAnimator anim = new CraAnimator();
+        anim.Layers = new CraLayer[maxLayerCount];
+        for (int layer = 0; layer < anim.Layers.Length; ++layer)
+        {
+            int idx = layer;
+            Layers[layer] = new CraLayer();
+            Layers[layer].OnStateFinished += () => OnStateFinished?.Invoke(idx);
+            Layers[layer].OnTransitFinished += () => OnTransitFinished?.Invoke(idx);
+        }
+        return anim;
+    }
 
     public int AddState(int layer, CraPlayer state)
     {
-        if (state == null)
+        if (!state.IsValid())
         {
             return CraSettings.STATE_NONE;
         }
@@ -207,24 +232,13 @@ public class CraAnimator : MonoBehaviour
         {
             for (int stateIdx = 0; stateIdx < Layers[layerIdx].States.Length; ++stateIdx)
             {
-                if (Layers[layerIdx].States[stateIdx] != null)
+                if (Layers[layerIdx].States[stateIdx].IsValid())
                 {
                     states.Add(Layers[layerIdx].States[stateIdx]);
                 }
             }
         }
         return states.ToArray();
-    }
-
-    void Awake()
-    {
-        for (int layer = 0; layer < CraSettings.MAX_LAYERS; ++layer)
-        {
-            int idx = layer;
-            Layers[layer] = new CraLayer();
-            Layers[layer].OnStateFinished += () => OnStateFinished?.Invoke(idx);
-            Layers[layer].OnTransitFinished += () => OnTransitFinished?.Invoke(idx);
-        }
     }
 }
 

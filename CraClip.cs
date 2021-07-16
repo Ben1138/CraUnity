@@ -387,12 +387,9 @@ public class CraClip
     }
 }
 
-public class CraPlayer
+public struct CraPlayer
 {
     public CraHandle PlayerHandle { get; private set; }
-
-
-    CraPlayer() { }
 
     public static CraPlayer CreateNew()
     {
@@ -402,73 +399,100 @@ public class CraPlayer
         };
     }
 
+    public static CraPlayer CreateEmpty()
+    {
+        return new CraPlayer
+        {
+            PlayerHandle = new CraHandle(CraSettings.STATE_NONE)
+        };
+    }
+
+    public bool IsValid()
+    {
+        return PlayerHandle.IsValid();
+    }
+
     public void SetClip(CraClip clip)
     {
+        Debug.Assert(IsValid());
         CraPlaybackManager.Instance.PlayerSetClip(PlayerHandle, clip);
     }
 
     public void Assign(Transform root, CraMask? mask=null)
     {
+        Debug.Assert(IsValid());
         CraPlaybackManager.Instance.PlayerAssign(PlayerHandle, root, mask);
     }
 
     public void CaptureBones()
     {
+        Debug.Assert(IsValid());
         CraPlaybackManager.Instance.PlayerCaptureBones(PlayerHandle);
     }
 
     public void Reset()
     {
+        Debug.Assert(IsValid());
         CraPlaybackManager.Instance.PlayerReset(PlayerHandle);
     }
 
     public bool IsPlaying()
     {
+        Debug.Assert(IsValid());
         return CraPlaybackManager.Instance.PlayerIsPlaying(PlayerHandle);
     }
 
     public float GetDuration()
     {
+        Debug.Assert(IsValid());
         return CraPlaybackManager.Instance.PlayerGetDuration(PlayerHandle);
     }
 
     public void Play(bool transit=false)
     {
+        Debug.Assert(IsValid());
         CraPlaybackManager.Instance.PlayerPlay(PlayerHandle, transit);
     }
 
     public float GetPlayback()
     {
+        Debug.Assert(IsValid());
         return CraPlaybackManager.Instance.PlayerGetPlayback(PlayerHandle);
     }
 
     public float GetPlaybackSpeed()
     {
+        Debug.Assert(IsValid());
         return CraPlaybackManager.Instance.PlayerGetPlaybackSpeed(PlayerHandle);
     }
 
     public void SetPlaybackSpeed(float speed)
     {
+        Debug.Assert(IsValid());
         CraPlaybackManager.Instance.PlayerSetPlaybackSpeed(PlayerHandle, speed);
     }
 
     public void ResetTransition()
     {
+        Debug.Assert(IsValid());
         CraPlaybackManager.Instance.PlayerResetTransition(PlayerHandle);
     }
 
     public bool IsLooping()
     {
+        Debug.Assert(IsValid());
         return CraPlaybackManager.Instance.PlayerIsLooping(PlayerHandle);
     }
 
     public void SetLooping(bool loop)
     {
+        Debug.Assert(IsValid());
         CraPlaybackManager.Instance.PlayerSetLooping(PlayerHandle, loop);
     }
 
     public bool IsFinished()
     {
+        Debug.Assert(IsValid());
         return CraPlaybackManager.Instance.PlayerIsFinished(PlayerHandle);
     }
 }
