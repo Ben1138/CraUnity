@@ -11,6 +11,8 @@ public class CraMonitor : EditorWindow
 
     string[] Abr = new string[] { "Bytes", "KB", "MB", "GB", "TB" };
 
+    GameObject MonitoredObject;
+
 
     [MenuItem("Cra/Runtime Monitor")]
     public static void OpenRuntimeMonitor()
@@ -84,19 +86,42 @@ public class CraMonitor : EditorWindow
             return;
         }
 
-        CraAnimator anim = Selection.activeGameObject.GetComponent<CraAnimator>();
-        if (anim == null)
+
+        ICraAnimated animated = null;
+        if (MonitoredObject != Selection.activeGameObject)
         {
-            EditorGUILayout.LabelField("Selected GameObject does not have a CraAnimator component!");
+            MonitoredObject = Selection.activeGameObject;
+
+            Component[] comps = MonitoredObject.GetComponents<Component>();
+            for (int i = 0; i < comps.Length; ++i)
+            {
+                if (comps[i] is ICraAnimated)
+                {
+                    animated = comps[i] as ICraAnimated;
+                    break;
+                }
+            }
+        }
+
+        if (animated == null)
+        {
+            EditorGUILayout.LabelField("Selected GameObject is not animated by Cra!");
+            return;
+        }
+
+        CraAnimator anim = animated.GetAnimator();
+        if (anim.IsValid())
+        {
+            EditorGUILayout.LabelField("Selected GameObject is animated by Cra, but returned no valid CraAnimator!");
             return;
         }
 
         ViewLayer = EditorGUILayout.Popup(ViewLayer, ViewLayerNames);
 
         CraPlayer state = anim.GetCurrentState(ViewLayer);
-        if (state != null)
+        if (state.IsValid())
         {
-            EditorGUILayout.LabelField("Player Handle", state.PlayerHandle.Handle.ToString());
+            EditorGUILayout.LabelField("Player Handle", state.Handle.Handle.ToString());
             EditorGUILayout.Space();
 
             EditorGUILayout.LabelField("State Idx", anim.GetCurrentStateIdx(ViewLayer).ToString());

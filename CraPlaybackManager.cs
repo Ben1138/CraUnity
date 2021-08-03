@@ -11,28 +11,10 @@ using UnityEngine.Jobs;
 using UnityEditor;
 #endif
 
-public static class CraSettings
-{
-    public const int STATE_NONE = -1;
-    //public const int MAX_LAYERS = 2;
-    public const int MAX_PLAYERS = 16384;
-    public const int MAX_LAYERS = 4096;
-    public const int MAX_ANIMATORS = 2048;
-    //public const float PLAYBACK_LERP_THRESHOLD = 0.5f;
-    //public const float TRANSITION_TIME = 0.5f;
-
-    public const int MAX_PLAYER_DATA = MAX_PLAYERS / 4;
-    public const int MAX_CLIP_DATA = 256;
-    public const int MAX_BAKED_CLIP_TRANSFORMS = 65535 * 4;
-    public const int MAX_BONE_DATA = 65535 * 4;
-    public const int MAX_BONES = 65535 * 4;
-
-    public static Func<string, int> BoneHashFunction;
-}
 
 public class CraPlaybackManager
 {
-    static CraPlaybackManager Instance;
+    public static CraPlaybackManager Instance { get; private set; }
 
 
     struct CraPlayerData
@@ -348,7 +330,7 @@ public class CraPlaybackManager
         data.ClipIndex[subIdex] = -1;
         data.PlaybackSpeed[subIdex] = 1f;
         data.Transition[subIdex] = 1f;
-        PlayerData.Set(dataIdx, ref data);
+        PlayerData.Set(dataIdx, in data);
 
         Debug.Assert(PlayerAssignedBones.Count == PlayerCounter);
 
@@ -395,11 +377,11 @@ public class CraPlaybackManager
             (CraPlayerData playerData, int subIdex) = PlayerGet(player);
             int clipIdx = playerData.ClipIndex[subIdex];
 
-            // Let the bone point to our Player & Clip
+            // Let the bone point to our Player and Clip
             CraBoneData boneData = BoneData.Get(boneIdx);
             boneData.PlayerIndex = player.Handle;
             boneData.ClipBoneIndex = BonePlayerClipIndices[boneIdx][clipIdx];
-            BoneData.Set(boneIdx, ref boneData);
+            BoneData.Set(boneIdx, in boneData);
         }
     }
 
@@ -567,7 +549,7 @@ public class CraPlaybackManager
     void PlayerSet(CraHandle player, ref CraPlayerData data)
     {
         int dataIdx = player.Handle / 4;
-        PlayerData.Set(dataIdx, ref data);
+        PlayerData.Set(dataIdx, in data);
     }
 
     int CopyClip(CraClip clip)
@@ -582,7 +564,7 @@ public class CraPlaybackManager
         data.FPS = clip.Fps;
         data.FrameCount = clip.FrameCount;
         data.FrameOffset = BakedClipTransforms.GetNumAllocated();
-        ClipData.Set(clipIdx, ref data);
+        ClipData.Set(clipIdx, in data);
 
         KnownClipIndices.Add(clip, clipIdx);
         KnownClips.Add(clipIdx, clip);
@@ -639,102 +621,5 @@ public class CraPlaybackManager
         Statistics.Bones.CurrentElements = Bones.length;
         Statistics.Bones.CurrentBytes = (sizeof(bool) + sizeof(int) * 2) * (ulong)Bones.length;
 #endif
-    }
-}
-
-public class CraDataContainer<T> where T : struct
-{
-    NativeArray<T> Elements;
-    int Head;
-
-    ~CraDataContainer()
-    {
-        Destroy();
-    }
-
-    public CraDataContainer(int capacity)
-    {
-        Elements = new NativeArray<T>(capacity, Allocator.Persistent);
-    }
-
-    public NativeArray<T> GetMemoryBuffer()
-    {
-        Debug.Assert(Elements.IsCreated);
-        return Elements;
-    }
-
-    public int GetCapacity()
-    {
-        return Elements.Length;
-    }
-
-    public int GetNumAllocated()
-    {
-        return Head;
-    }
-
-    // returns index
-    public int Alloc()
-    {
-        Debug.Assert(Elements.IsCreated);
-        if (Head == Elements.Length)
-        {
-            Debug.LogError($"Max capacity of {Elements.Length} reached!");
-            return -1;
-        }
-        return Head++;
-    }
-
-    public bool Alloc(int count)
-    {
-        Debug.Assert(count > 0);
-
-        int space = Elements.Length - (Head + count);
-        if (space < 0)
-        {
-            Debug.LogError($"Alloc {count} elements exceeds the capacity of {Elements.Length}!");
-            return false;
-        }
-        Head += count;
-        return true;
-    }
-
-    public T Get(int index)
-    {
-        Debug.Assert(Elements.IsCreated);
-        Debug.Assert(index >= 0 && index < Head);
-        return Elements[index];
-    }
-
-    public void Set(int index, ref T value)
-    {
-        Debug.Assert(Elements.IsCreated);
-        Debug.Assert(index >= 0 && index < Head);
-        Elements[index] = value;
-    }
-
-    public bool AllocFrom(T[] buffer)
-    {
-        Debug.Assert(buffer != null);
-        Debug.Assert(buffer.Length > 0);
-
-        int previousHead = Head;
-        if (!Alloc(buffer.Length))
-        {
-            return false;
-        }
-        NativeArray<T>.Copy(buffer, 0, Elements, previousHead, buffer.Length);
-        return true;
-    }
-
-    public void Clear()
-    {
-        Head = 0;
-    }
-
-    public void Destroy()
-    {
-        Head = 0;
-        Elements.Dispose();
     }
 }
