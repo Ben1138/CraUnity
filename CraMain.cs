@@ -1,5 +1,7 @@
 using System;
-
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 public class CraMain
 {
@@ -10,12 +12,22 @@ public class CraMain
     {
         Players = CraPlaybackManager.Get();
         Animators = CraAnimatorManager.Get();
+
+#if UNITY_EDITOR
+        EditorApplication.quitting += Destroy;
+#endif
     }
 
     public void Tick()
     {
         Players.Tick();
         Animators.Tick();
+    }
+
+    public void Clear()
+    {
+        Players.Clear();
+        Animators.Clear();
     }
 
     public void Destroy()

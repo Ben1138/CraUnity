@@ -111,6 +111,12 @@ public class CraMonitor : EditorWindow
             }
         }
 
+        if (!Monitored.HasValue)
+        {
+            EditorGUILayout.LabelField("Selected GameObject is not animated by Cra!");
+            return;
+        }
+
         ViewLayer = EditorGUILayout.Popup(ViewLayer, ViewLayerNames);
         CraPlayer state = Monitored.Value.GetCurrentState(ViewLayer);
 
