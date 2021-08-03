@@ -1,11 +1,5 @@
 using System;
-using System.Collections.Generic;
 using UnityEngine;
-using Unity.Collections;
-using Unity.Mathematics;
-using Unity.Burst;
-using Unity.Jobs;
-using UnityEngine.Jobs;
 
 
 public interface ICraAnimated
@@ -312,6 +306,8 @@ public class CraAnimatorManager
     {
         Layers.Destroy();
         Animators.Destroy();
+
+        Instance = null;
     }
 
     public void Tick()

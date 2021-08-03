@@ -7,10 +7,6 @@ using Unity.Burst;
 using Unity.Jobs;
 using UnityEngine.Jobs;
 
-#if UNITY_EDITOR
-using UnityEditor;
-#endif
-
 
 public class CraPlaybackManager
 {
@@ -272,10 +268,6 @@ public class CraPlaybackManager
             ClipData = ClipData.GetMemoryBuffer(),
             BakedClipTransforms = BakedClipTransforms.GetMemoryBuffer()
         };
-
-#if UNITY_EDITOR
-        EditorApplication.quitting += Destroy;
-#endif
     }
 
     public static CraPlaybackManager Get()
@@ -287,26 +279,6 @@ public class CraPlaybackManager
 
         Instance = new CraPlaybackManager();
         return Instance;
-    }
-
-    public void Clear()
-    {
-        PlayerData.Clear();
-        PlayerCounter = 0;
-
-        BoneData.Clear();
-        Bones.SetTransforms(new Transform[] {});
-        
-        ClipData.Clear();
-        BakedClipTransforms.Clear();
-
-        KnownClipIndices.Clear();
-        KnownClips.Clear();
-
-        KnownBoneIndices.Clear();
-
-        BonePlayerClipIndices.Clear();
-        PlayerAssignedBones.Clear();
     }
 
     public CraHandle PlayerNew()
@@ -586,6 +558,27 @@ public class CraPlaybackManager
         return clipIdx;
     }
 
+    public void Clear()
+    {
+        PlayerData.Clear();
+        PlayerCounter = 0;
+
+        BoneData.Clear();
+        Bones.SetTransforms(new Transform[] { });
+
+        ClipData.Clear();
+        BakedClipTransforms.Clear();
+
+        KnownClipIndices.Clear();
+        KnownClips.Clear();
+
+        KnownBoneIndices.Clear();
+
+        BonePlayerClipIndices.Clear();
+        PlayerAssignedBones.Clear();
+    }
+
+
     public void Destroy()
     {
         Debug.Log("Deleting all animator manager data");
@@ -594,6 +587,8 @@ public class CraPlaybackManager
         BoneData.Destroy();
         Bones.Dispose();
         BakedClipTransforms.Destroy();
+
+        Instance = null;
     }
 
     public void Tick()
