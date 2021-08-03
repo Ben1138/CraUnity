@@ -92,7 +92,7 @@ public class CraMonitor : EditorWindow
                 }
             }
 
-            if (Monitored == null)
+            if (!Monitored.HasValue)
             {
                 EditorGUILayout.LabelField("Selected GameObject is not animated by Cra!");
                 return;
