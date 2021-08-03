@@ -148,16 +148,10 @@ public class CraDataContainerManaged<T> where T : struct
         return true;
     }
 
-    public T Get(int index)
+    public ref T Get(int index)
     {
         Debug.Assert(index >= 0 && index < Head);
-        return Elements[index];
-    }
-
-    public void Set(int index, in T value)
-    {
-        Debug.Assert(index >= 0 && index < Head);
-        Elements[index] = value;
+        return ref Elements[index];
     }
 
     public void Clear()

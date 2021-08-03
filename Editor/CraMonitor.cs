@@ -12,22 +12,13 @@ public class CraMonitor : EditorWindow
     string[] Abr = new string[] { "Bytes", "KB", "MB", "GB", "TB" };
 
     GameObject MonitoredObject;
-
+    CraAnimator? Monitored;
 
     [MenuItem("Cra/Runtime Monitor")]
     public static void OpenRuntimeMonitor()
     {
         CraMonitor window = GetWindow<CraMonitor>();
         window.Show();
-    }
-
-    void Awake()
-    {
-        ViewLayerNames = new string[CraSettings.MAX_LAYERS];
-        for (int i = 0; i < ViewLayerNames.Length; ++i)
-        {
-            ViewLayerNames[i] = "Layer " + i;
-        }
     }
 
     void Update()
@@ -86,10 +77,9 @@ public class CraMonitor : EditorWindow
             return;
         }
 
-
-        ICraAnimated animated = null;
         if (MonitoredObject != Selection.activeGameObject)
         {
+            Monitored = null;
             MonitoredObject = Selection.activeGameObject;
 
             Component[] comps = MonitoredObject.GetComponents<Component>();
@@ -97,34 +87,39 @@ public class CraMonitor : EditorWindow
             {
                 if (comps[i] is ICraAnimated)
                 {
-                    animated = comps[i] as ICraAnimated;
+                    Monitored = (comps[i] as ICraAnimated).GetAnimator();
                     break;
                 }
             }
-        }
 
-        if (animated == null)
-        {
-            EditorGUILayout.LabelField("Selected GameObject is not animated by Cra!");
-            return;
-        }
+            if (Monitored == null)
+            {
+                EditorGUILayout.LabelField("Selected GameObject is not animated by Cra!");
+                return;
+            }
 
-        CraAnimator anim = animated.GetAnimator();
-        if (anim.IsValid())
-        {
-            EditorGUILayout.LabelField("Selected GameObject is animated by Cra, but returned no valid CraAnimator!");
-            return;
+            if (!Monitored.Value.IsValid())
+            {
+                EditorGUILayout.LabelField("Selected GameObject is animated by Cra, but returned no valid CraAnimator!");
+                return;
+            }
+
+            ViewLayerNames = new string[Monitored.Value.GetNumLayers()];
+            for (int i = 0; i < ViewLayerNames.Length; ++i)
+            {
+                ViewLayerNames[i] = "Layer " + i;
+            }
         }
 
         ViewLayer = EditorGUILayout.Popup(ViewLayer, ViewLayerNames);
+        CraPlayer state = Monitored.Value.GetCurrentState(ViewLayer);
 
-        CraPlayer state = anim.GetCurrentState(ViewLayer);
         if (state.IsValid())
         {
             EditorGUILayout.LabelField("Player Handle", state.Handle.Handle.ToString());
             EditorGUILayout.Space();
 
-            EditorGUILayout.LabelField("State Idx", anim.GetCurrentStateIdx(ViewLayer).ToString());
+            EditorGUILayout.LabelField("State Idx", Monitored.Value.GetCurrentStateIdx(ViewLayer).ToString());
             EditorGUILayout.Space();
 
             EditorGUILayout.LabelField("Playback Speed");

@@ -18,16 +18,16 @@ public class CraAnimatorManager
 
     struct CraLayerData
     {
-        public CraPlayer[] States;
-        public int CurrentStateIdx;
-        public Action OnTransitFinished;
-        public Action OnStateFinished;
-        public bool OnStateFinishedInvoked;
+        public CraPlayer[]  States;
+        public int          CurrentStateIdx;
+        public Action       OnTransitFinished;
+        public Action       OnStateFinished;
+        public bool         OnStateFinishedInvoked;
     }
 
     struct CraAnimatorData
     {
-        public CraLayer[] Layers;
+        public CraLayer[]  Layers;
         public Action<int> OnTransitFinished;
         public Action<int> OnStateFinished;
     }
@@ -61,7 +61,7 @@ public class CraAnimatorManager
             return new CraHandle(-1);
         }
 
-        CraLayerData data = Layers.Get(idx);
+        ref CraLayerData data = ref Layers.Get(idx);
         data.States = new CraPlayer[maxStates];
         data.OnStateFinished = null;
         data.OnTransitFinished= null;
@@ -71,19 +71,17 @@ public class CraAnimatorManager
             data.States[i] = CraPlayer.CreateEmpty();
         }
 
-        Layers.Set(idx, in data);
         return new CraHandle(idx);
     }
 
     public int LayerAddState(CraHandle layer, CraPlayer state)
     {
-        CraLayerData data = Layers.Get(layer.Handle);
+        ref CraLayerData data = ref Layers.Get(layer.Handle);
         for (int i = 0; i < data.States.Length; ++i)
         {
             if (!data.States[i].IsValid())
             {
                 data.States[i] = state;
-                Layers.Set(layer.Handle, in data);
                 return i;
             }
         }
@@ -94,7 +92,7 @@ public class CraAnimatorManager
 
     public CraPlayer LayerGetCurrentState(CraHandle layer)
     {
-        CraLayerData data = Layers.Get(layer.Handle);
+        ref CraLayerData data = ref Layers.Get(layer.Handle);
         if (data.CurrentStateIdx != CraSettings.STATE_NONE)
         {
             Debug.Assert(data.States[data.CurrentStateIdx].IsValid());
@@ -105,7 +103,7 @@ public class CraAnimatorManager
 
     public int LayerGetCurrentStateIdx(CraHandle layer)
     {
-        CraLayerData data = Layers.Get(layer.Handle);
+        ref CraLayerData data = ref Layers.Get(layer.Handle);
         if (data.CurrentStateIdx != CraSettings.STATE_NONE)
         {
             Debug.Assert(data.States[data.CurrentStateIdx].IsValid());
@@ -116,7 +114,7 @@ public class CraAnimatorManager
 
     public void LayerSetState(CraHandle layer, int stateIdx)
     {
-        CraLayerData data = Layers.Get(layer.Handle);
+        ref CraLayerData data = ref Layers.Get(layer.Handle);
         if (stateIdx == data.CurrentStateIdx) return;
 
         Debug.Assert(stateIdx < data.States.Length);
@@ -131,12 +129,11 @@ public class CraAnimatorManager
             data.States[stateIdx].Play(true);
             data.OnStateFinishedInvoked = false;
         }
-        Layers.Set(layer.Handle, in data);
     }
 
     public void LayerCaptureBones(CraHandle layer)
     {
-        CraLayerData data = Layers.Get(layer.Handle);
+        ref CraLayerData data = ref Layers.Get(layer.Handle);
         if (data.CurrentStateIdx != CraSettings.STATE_NONE)
         {
             Debug.Assert(data.States[data.CurrentStateIdx].IsValid());
@@ -146,40 +143,37 @@ public class CraAnimatorManager
 
     public void LayerRestartState(CraHandle layer)
     {
-        CraLayerData data = Layers.Get(layer.Handle);
+        ref CraLayerData data = ref Layers.Get(layer.Handle);
         if (data.CurrentStateIdx != CraSettings.STATE_NONE)
         {
             data.States[data.CurrentStateIdx].Play(true);
             data.OnStateFinishedInvoked = false;
         }
-        Layers.Set(layer.Handle, in data);
     }
 
     public void LayerTransitFromAboveLayer(CraHandle layer)
     {
-        CraLayerData data = Layers.Get(layer.Handle);
+        ref CraLayerData data = ref Layers.Get(layer.Handle);
         Debug.Assert(data.CurrentStateIdx != CraSettings.STATE_NONE);
         data.States[data.CurrentStateIdx].ResetTransition();
     }
 
     public void LayerSetPlaybackSpeed(CraHandle layer, int stateIdx, float playbackSpeed)
     {
-        CraLayerData data = Layers.Get(layer.Handle);
+        ref CraLayerData data = ref Layers.Get(layer.Handle);
         data.States[stateIdx].SetPlaybackSpeed(playbackSpeed);
     }
 
     public void LayerAddOnTransitFinishedListener(CraHandle layer, Action callback)
     {
-        CraLayerData data = Layers.Get(layer.Handle);
+        ref CraLayerData data = ref Layers.Get(layer.Handle);
         data.OnTransitFinished += callback;
-        Layers.Set(layer.Handle, in data);
     }
 
     public void LayerAddOnStateFinishedListener(CraHandle layer, Action callback)
     {
-        CraLayerData data = Layers.Get(layer.Handle);
+        ref CraLayerData data = ref Layers.Get(layer.Handle);
         data.OnStateFinished += callback;
-        Layers.Set(layer.Handle, in data);
     }
 
     public CraHandle AnimatorNew(int numLayers, int maxStatesPerLayer)
@@ -190,23 +184,39 @@ public class CraAnimatorManager
             return new CraHandle(-1);
         }
 
-        CraAnimatorData data = Animators.Get(idx);
+        ref CraAnimatorData data = ref Animators.Get(idx);
         data.OnStateFinished = null;
         data.OnTransitFinished = null;
 
         data.Layers = new CraLayer[numLayers];
         for (int i = 0; i < data.Layers.Length; ++i)
         {
+            // capture by value
+            int layerIdx = i;
+
             data.Layers[i] = CraLayer.CreateNew(maxStatesPerLayer);
+            data.Layers[i].AddOnStateFinishedListener(() => StateFinishedListener(idx, layerIdx));
+            data.Layers[i].AddOnTransitFinishedListener(() => TransitFinishedListener(idx, layerIdx));
         }
 
-        Animators.Set(idx, in data);
         return new CraHandle(idx);
+    }
+
+    void StateFinishedListener(int animIdx, int layerIdx)
+    {
+        ref CraAnimatorData data = ref Animators.Get(animIdx);
+        data.OnStateFinished?.Invoke(layerIdx);
+    }
+
+    void TransitFinishedListener(int animIdx, int layerIdx)
+    {
+        ref CraAnimatorData data = ref Animators.Get(animIdx);
+        data.OnTransitFinished?.Invoke(layerIdx);
     }
 
     public int AnimatorAddState(CraHandle animator, int layer, CraPlayer state)
     {
-        CraAnimatorData data = Animators.Get(animator.Handle);
+        ref CraAnimatorData data = ref Animators.Get(animator.Handle);
         Debug.Assert(layer >= 0 && layer < data.Layers.Length);
         Debug.Assert(state.IsValid());
 
@@ -215,7 +225,7 @@ public class CraAnimatorManager
 
     public CraPlayer AnimatorGetCurrentState(CraHandle animator, int layer)
     {
-        CraAnimatorData data = Animators.Get(animator.Handle);
+        ref CraAnimatorData data = ref Animators.Get(animator.Handle);
         Debug.Assert(layer >= 0 && layer < data.Layers.Length);
 
         return data.Layers[layer].GetCurrentState();
@@ -223,14 +233,14 @@ public class CraAnimatorManager
 
     public int AnimatorGetCurrentStateIdx(CraHandle animator, int layer)
     {
-        CraAnimatorData data = Animators.Get(animator.Handle);
+        ref CraAnimatorData data = ref Animators.Get(animator.Handle);
         Debug.Assert(layer >= 0 && layer < data.Layers.Length);
         return data.Layers[layer].GetCurrentStateIdx();
     }
 
     public void AnimatorSetState(CraHandle animator, int layer, int stateIdx)
     {
-        CraAnimatorData data = Animators.Get(animator.Handle);
+        ref CraAnimatorData data = ref Animators.Get(animator.Handle);
         Debug.Assert(layer >= 0 && layer < data.Layers.Length);
 
         data.Layers[layer].SetState(stateIdx);
@@ -259,7 +269,7 @@ public class CraAnimatorManager
 
     public void AnimatorSetPlaybackSpeed(CraHandle animator, int layer, int stateIdx, float playbackSpeed)
     {
-        CraAnimatorData data = Animators.Get(animator.Handle);
+        ref CraAnimatorData data = ref Animators.Get(animator.Handle);
         Debug.Assert(layer >= 0 && layer < data.Layers.Length);
 
         data.Layers[layer].SetPlaybackSpeed(stateIdx, playbackSpeed);
@@ -267,7 +277,7 @@ public class CraAnimatorManager
 
     public void AnimatorRestartState(CraHandle animator, int layer)
     {
-        CraAnimatorData data = Animators.Get(animator.Handle);
+        ref CraAnimatorData data = ref Animators.Get(animator.Handle);
         Debug.Assert(layer >= 0 && layer < data.Layers.Length);
 
         data.Layers[layer].RestartState();
@@ -275,16 +285,20 @@ public class CraAnimatorManager
 
     public void AnimatorAddOnTransitFinishedListener(CraHandle animator, Action<int> callback)
     {
-        CraAnimatorData data = Animators.Get(animator.Handle);
+        ref CraAnimatorData data = ref Animators.Get(animator.Handle);
         data.OnStateFinished += callback;
-        Animators.Set(animator.Handle, in data);
     }
 
     public void AnimatorAddOnStateFinishedListener(CraHandle animator, Action<int> callback)
     {
-        CraAnimatorData data = Animators.Get(animator.Handle);
+        ref CraAnimatorData data = ref Animators.Get(animator.Handle);
         data.OnStateFinished += callback;
-        Animators.Set(animator.Handle, in data);
+    }
+
+    public int AnimatorGetNumLayers(CraHandle animator)
+    {
+        ref CraAnimatorData data = ref Animators.Get(animator.Handle);
+        return data.Layers.Length;
     }
 
 
@@ -305,14 +319,17 @@ public class CraAnimatorManager
         // Invoke layer events on main thread!
         for (int i = 0; i < Layers.GetNumAllocated(); ++i)
         {
-            CraLayerData data = Layers.Get(i);
-
+            ref CraLayerData data = ref Layers.Get(i);
             if (data.CurrentStateIdx > -1)
             {
                 ref CraPlayer state = ref data.States[data.CurrentStateIdx];
                 if (!data.OnStateFinishedInvoked && state.IsFinished())
                 {
-                    data.OnStateFinished?.Invoke();
+                    if (data.OnStateFinished != null)
+                    {
+                        data.OnStateFinished.Invoke();
+                    }
+
                     data.OnStateFinishedInvoked = true;
                 }
             }

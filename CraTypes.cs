@@ -359,4 +359,10 @@ public struct CraAnimator
         Debug.Assert(Handle.IsValid());
         CraAnimatorManager.Instance.AnimatorAddOnStateFinishedListener(Handle, callback);
     }
+
+    public int GetNumLayers()
+    {
+        Debug.Assert(Handle.IsValid());
+        return CraAnimatorManager.Instance.AnimatorGetNumLayers(Handle);
+    }
 }
