@@ -52,7 +52,7 @@ public class CraStatistics
 public static class CraSettings
 {
     public const int STATE_NONE = -1;
-    public const int MAX_PLAYERS = 16384;
+    public const int MAX_PLAYERS = 32768;
     public const int MAX_LAYERS = 4096;
     public const int MAX_ANIMATORS = 2048;
 
