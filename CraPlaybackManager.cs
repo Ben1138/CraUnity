@@ -285,7 +285,7 @@ public class CraPlaybackManager
     {
         if (PlayerCounter + 1 >= (PlayerData.GetCapacity() * 4))
         {
-            Debug.LogError($"Limit of {PlayerData.GetCapacity()} Animation Players reached!");
+            Debug.LogError($"Limit of {CraSettings.MAX_PLAYERS} Animation Players ({PlayerData.GetCapacity()} Player Data) reached!");
             return new CraHandle(-1);
         }
 
