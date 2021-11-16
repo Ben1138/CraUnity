@@ -270,7 +270,7 @@ public class CraClip
         BoneHashToIdx.Clear();
         for (int i = 0; i < Bones.Length; ++i)
         {
-            BoneHashToIdx.Add(Bones[i].BoneHash, i);
+            BoneHashToIdx[Bones[i].BoneHash] = i;
         }
     }
 
