@@ -276,7 +276,7 @@ public class CraClip
 
     public int GetBoneIdx(string boneName)
     {
-        if (BoneHashToIdx.TryGetValue(CraSettings.BoneHashFunction(boneName), out int idx))
+        if (BoneHashToIdx.TryGetValue(CraMain.Instance.Settings.BoneHashFunction(boneName), out int idx))
         {
             return idx;
         }
