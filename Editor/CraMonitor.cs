@@ -12,7 +12,7 @@ public class CraMonitor : EditorWindow
     string[] Abr = new string[] { "Bytes", "KB", "MB", "GB", "TB" };
 
     GameObject MonitoredObject;
-    CraAnimator? Monitored;
+    CraStateMachine? Monitored;
 
     [MenuItem("Cra/Runtime Monitor")]
     public static void OpenRuntimeMonitor()
@@ -47,9 +47,9 @@ public class CraMonitor : EditorWindow
 
     void OnGUI()
     {
-        if (CraPlaybackManager.Instance != null)
+        if (CraMain.Instance != null)
         {
-            CraStatistics stats = CraPlaybackManager.Instance.Statistics;
+            CraStatistics stats = CraMain.Instance.Players.Statistics;
             DisplayMeasure("Playback", ref stats.PlayerData);
             DisplayMeasure("Clip", ref stats.ClipData);
             DisplayMeasure("Baked", ref stats.BakedClipTransforms);
@@ -87,7 +87,7 @@ public class CraMonitor : EditorWindow
             {
                 if (comps[i] is ICraAnimated)
                 {
-                    Monitored = (comps[i] as ICraAnimated).GetAnimator();
+                    Monitored = (comps[i] as ICraAnimated).GetStateMachine();
                     break;
                 }
             }
@@ -104,11 +104,11 @@ public class CraMonitor : EditorWindow
                 return;
             }
 
-            ViewLayerNames = new string[Monitored.Value.GetNumLayers()];
-            for (int i = 0; i < ViewLayerNames.Length; ++i)
-            {
-                ViewLayerNames[i] = "Layer " + i;
-            }
+            //ViewLayerNames = new string[Monitored.Value.GetNumLayers()];
+            //for (int i = 0; i < ViewLayerNames.Length; ++i)
+            //{
+            //    ViewLayerNames[i] = "Layer " + i;
+            //}
         }
 
         if (!Monitored.HasValue)
@@ -118,42 +118,42 @@ public class CraMonitor : EditorWindow
         }
 
         ViewLayer = EditorGUILayout.Popup(ViewLayer, ViewLayerNames);
-        CraPlayer state = Monitored.Value.GetCurrentState(ViewLayer);
+        //CraPlayer state = Monitored.Value.GetCurrentState(ViewLayer);
 
-        if (state.IsValid())
-        {
-            EditorGUILayout.LabelField("Player Handle", state.Handle.Handle.ToString());
-            EditorGUILayout.Space();
+        //if (state.IsValid())
+        //{
+        //    EditorGUILayout.LabelField("Player Handle", state.Handle.Internal.ToString());
+        //    EditorGUILayout.Space();
 
-            EditorGUILayout.LabelField("State Idx", Monitored.Value.GetCurrentStateIdx(ViewLayer).ToString());
-            EditorGUILayout.Space();
+        //    EditorGUILayout.LabelField("State Idx", Monitored.Value.GetCurrentStateIdx(ViewLayer).ToString());
+        //    EditorGUILayout.Space();
 
-            EditorGUILayout.LabelField("Playback Speed");
-            state.SetPlaybackSpeed(EditorGUILayout.Slider(state.GetPlaybackSpeed(), 0f, 10f));
+        //    EditorGUILayout.LabelField("Playback Speed");
+        //    state.SetPlaybackSpeed(EditorGUILayout.Slider(state.GetPlaybackSpeed(), 0f, 10f));
 
-            EditorGUILayout.Space();
-            EditorGUILayout.LabelField("Looping");
-            state.SetLooping(EditorGUILayout.Toggle(state.IsLooping()));
+        //    EditorGUILayout.Space();
+        //    EditorGUILayout.LabelField("Looping");
+        //    state.SetLooping(EditorGUILayout.Toggle(state.IsLooping()));
 
-            EditorGUILayout.Space();
-            if (GUILayout.Button(state.IsPlaying() ? "Stop" : "Play"))
-            {
-                if (state.IsPlaying())
-                {
-                    state.Reset();
-                }
-                else
-                {
-                    state.Play();
-                }
-            }
+        //    EditorGUILayout.Space();
+        //    if (GUILayout.Button(state.IsPlaying() ? "Stop" : "Play"))
+        //    {
+        //        if (state.IsPlaying())
+        //        {
+        //            state.Reset();
+        //        }
+        //        else
+        //        {
+        //            state.Play();
+        //        }
+        //    }
 
-            EditorGUILayout.Space();
-            EditorGUILayout.Slider(state.GetPlayback(), 0f, state.GetDuration());
-        }
-        else
-        {
-            EditorGUILayout.LabelField("NO STATE");
-        }
+        //    EditorGUILayout.Space();
+        //    EditorGUILayout.Slider(state.GetPlayback(), 0f, state.GetDuration());
+        //}
+        //else
+        //{
+        //    EditorGUILayout.LabelField("NO STATE");
+        //}
     }
 }

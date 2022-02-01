@@ -1,21 +1,32 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
 
+
+// Debug only
+public interface ICraAnimated
+{
+    CraStateMachine GetStateMachine();
+}
+
 public struct CraHandle
 {
-    public int Handle { get; private set; }
+    public int Internal { get; private set; }
 
-    public CraHandle(int handle)
+    public CraHandle(int internalHandle)
     {
-        Handle = handle;
+        Internal = internalHandle;
     }
 
     public bool IsValid()
     {
-        return Handle >= 0;
+        return Internal >= 0;
     }
+
+    public static CraHandle Invalid => new CraHandle(-1);
 }
 
 public struct CraTransform
@@ -71,12 +82,12 @@ public struct CraBone
 
     public CraBone(string boneName, CraTransformCurve curve)
     {
-        if (CraSettings.BoneHashFunction == null)
+        if (CraMain.Instance.Settings.BoneHashFunction == null)
         {
-            throw new Exception("CraSettings.BoneHashFunction is not assigned! You need to assign a custom hash function!");
+            throw new Exception("CraMain.Instance.Settings.BoneHashFunction is not assigned! You need to assign a custom hash function!");
         }
 
-        BoneHash = CraSettings.BoneHashFunction(boneName);
+        BoneHash = CraMain.Instance.Settings.BoneHashFunction(boneName);
         Curve = curve;
     }
 }
@@ -91,18 +102,226 @@ public struct CraMask
 
     public CraMask(bool maskChildren, params string[] boneNames)
     {
-        if (CraSettings.BoneHashFunction == null)
+        if (CraMain.Instance.Settings.BoneHashFunction == null)
         {
-            throw new Exception("CraSettings.BoneHashFunction is not assigned! You need to assign a custom hash function!");
+            throw new Exception("CraMain.Instance.Settings.BoneHashFunction is not assigned! You need to assign a custom hash function!");
         }
 
         BoneHashes = new HashSet<int>();
         for (int i = 0; i < boneNames.Length; ++i)
         {
-            BoneHashes.Add(CraSettings.BoneHashFunction(boneNames[i]));
+            BoneHashes.Add(CraMain.Instance.Settings.BoneHashFunction(boneNames[i]));
         }
         MaskChildren = maskChildren;
     }
+}
+
+public enum CraValueType : int
+{
+    Int,
+    Float,
+    Bool
+}
+
+public enum CraCondition
+{
+    Equal,
+    Greater,
+    Less,
+    GreaterOrEqual,
+    LessOrEqual,
+
+    Trigger,
+    IsFinished
+}
+
+[StructLayout(LayoutKind.Explicit)]
+public struct CraValueUnion
+{
+    [FieldOffset(0)]
+    public CraValueType Type;
+
+    [FieldOffset(4)]
+    public int ValueInt;
+    [FieldOffset(4)]
+    public float ValueFloat;
+    [FieldOffset(4)]
+    public bool ValueBool;
+}
+
+public struct CraTransitionCondition
+{
+    public CraCondition Condition;
+    public CraInput Input;
+    public CraValueUnion Value;
+    public bool ValueAsAbsolute;
+}
+
+public struct CraTransition
+{
+    public CraState Target;
+    public CraTransitionCondition Condition;
+}
+
+public class CraBuffer<T> where T : struct
+{
+    NativeArray<T> Elements;
+    int Head;
+    float GrowFactor;
+
+    ~CraBuffer()
+    {
+        Destroy();
+    }
+
+    public CraBuffer(in CraBufferSettings settings)
+    {
+        GrowFactor = settings.GrowFactor;
+        Elements = new NativeArray<T>(settings.Capacity, Allocator.Persistent);
+    }
+
+    public NativeArray<T> GetMemoryBuffer()
+    {
+        Debug.Assert(Elements.IsCreated);
+        return Elements;
+    }
+
+    public int GetCapacity()
+    {
+        return Elements.Length;
+    }
+
+    public int GetNumAllocated()
+    {
+        return Head;
+    }
+
+    // returns index
+    public int Alloc()
+    {
+        Debug.Assert(Elements.IsCreated);
+        if (Head == Elements.Length)
+        {
+            if (GrowFactor > 1.0f)
+            {
+                Grow();
+            }
+            else
+            {
+                Debug.LogError($"Max capacity of {Elements.Length} reached!");
+                return -1;
+            }
+        }
+        return Head++;
+    }
+
+    public bool Alloc(int count)
+    {
+        Debug.Assert(count > 0);
+
+        int space = Elements.Length - (Head + count);
+        if (GrowFactor > 1.0f)
+        {
+            while (space < 0)
+            {
+                Grow();
+                space = Elements.Length - (Head + count);
+            }
+        }
+        else if (space < 0)
+        {
+            Debug.LogError($"Alloc {count} elements exceeds the capacity of {Elements.Length}!");
+            return false;
+        }
+        Head += count;
+        return true;
+    }
+
+    public T Get(int index)
+    {
+        Debug.Assert(Elements.IsCreated);
+        Debug.Assert(index >= 0 && index < Head);
+        return Elements[index];
+    }
+
+    public void Set(int index, in T value)
+    {
+        Debug.Assert(Elements.IsCreated);
+        Debug.Assert(index >= 0 && index < Head);
+        Elements[index] = value;
+    }
+
+    public bool AllocFrom(T[] buffer)
+    {
+        Debug.Assert(buffer != null);
+        Debug.Assert(buffer.Length > 0);
+
+        int previousHead = Head;
+        if (!Alloc(buffer.Length))
+        {
+            return false;
+        }
+        NativeArray<T>.Copy(buffer, 0, Elements, previousHead, buffer.Length);
+        return true;
+    }
+
+    public void Clear()
+    {
+        Head = 0;
+    }
+
+    public void Destroy()
+    {
+        Head = 0;
+        Elements.Dispose();
+    }
+
+    void Grow()
+    {
+        Debug.Assert(Elements.IsCreated);
+        Debug.Assert(Elements.Length * GrowFactor > Elements.Length);
+        NativeArray<T> tmp = new NativeArray<T>((int)(Elements.Length * GrowFactor), Allocator.Persistent);
+        Elements.Dispose();
+        Elements = tmp;
+    }
+}
+
+#if UNITY_EDITOR
+public class CraStatistics
+{
+    public CraMeasure PlayerData;
+    public CraMeasure ClipData;
+    public CraMeasure BakedClipTransforms;
+    public CraMeasure BoneData;
+    public CraMeasure Bones;
+}
+#endif
+
+public struct CraBufferSettings
+{
+    public int Capacity;
+    public float GrowFactor;
+}
+
+public struct CraSettings
+{
+    public CraBufferSettings Players;
+    public CraBufferSettings Clips;
+    public CraBufferSettings ClipTransforms;
+    public CraBufferSettings Bones;
+
+    public CraBufferSettings StateMachines;
+    public CraBufferSettings Inputs;
+    public CraBufferSettings States;
+    public CraBufferSettings Transitions;
+
+    public int MaxBones;
+
+    public const int MaxTransitions = 5;
+    public const int MaxLayers = 5;
+    public const int MaxInputs = 5;
+
+    public Func<string, int> BoneHashFunction;
 }
 
 public struct CraPlayer
@@ -113,7 +332,7 @@ public struct CraPlayer
     {
         return new CraPlayer
         {
-            Handle = CraPlaybackManager.Instance.PlayerNew()
+            Handle = CraMain.Instance.Players.Player_New()
         };
     }
 
@@ -121,7 +340,7 @@ public struct CraPlayer
     {
         return new CraPlayer
         {
-            Handle = new CraHandle(CraSettings.STATE_NONE)
+            Handle = CraHandle.Invalid
         };
     }
 
@@ -133,98 +352,160 @@ public struct CraPlayer
     public void SetClip(CraClip clip)
     {
         Debug.Assert(IsValid());
-        CraPlaybackManager.Instance.PlayerSetClip(Handle, clip);
+        CraMain.Instance.Players.Player_SetClip(Handle, clip);
     }
 
     public void Assign(Transform root, CraMask? mask = null)
     {
         Debug.Assert(IsValid());
-        CraPlaybackManager.Instance.PlayerAssign(Handle, root, mask);
+        CraMain.Instance.Players.Player_Assign(Handle, root, mask);
     }
 
     public void CaptureBones()
     {
         Debug.Assert(IsValid());
-        CraPlaybackManager.Instance.PlayerCaptureBones(Handle);
+        CraMain.Instance.Players.Player_CaptureBones(Handle);
     }
 
     public void Reset()
     {
         Debug.Assert(IsValid());
-        CraPlaybackManager.Instance.PlayerReset(Handle);
+        CraMain.Instance.Players.Player_Reset(Handle);
     }
 
     public bool IsPlaying()
     {
         Debug.Assert(IsValid());
-        return CraPlaybackManager.Instance.PlayerIsPlaying(Handle);
+        return CraMain.Instance.Players.Player_IsPlaying(Handle);
     }
 
     public float GetDuration()
     {
         Debug.Assert(IsValid());
-        return CraPlaybackManager.Instance.PlayerGetDuration(Handle);
+        return CraMain.Instance.Players.Player_GetDuration(Handle);
     }
 
-    public void Play(bool transit = false)
+    public void Play(float transitionTime=0.0f)
     {
         Debug.Assert(IsValid());
-        CraPlaybackManager.Instance.PlayerPlay(Handle, transit);
+        CraMain.Instance.Players.Player_Play(Handle, transitionTime);
     }
 
     public float GetPlayback()
     {
         Debug.Assert(IsValid());
-        return CraPlaybackManager.Instance.PlayerGetPlayback(Handle);
+        return CraMain.Instance.Players.Player_GetPlayback(Handle);
     }
 
     public float GetPlaybackSpeed()
     {
         Debug.Assert(IsValid());
-        return CraPlaybackManager.Instance.PlayerGetPlaybackSpeed(Handle);
+        return CraMain.Instance.Players.Player_GetPlaybackSpeed(Handle);
     }
 
     public void SetPlaybackSpeed(float speed)
     {
         Debug.Assert(IsValid());
-        CraPlaybackManager.Instance.PlayerSetPlaybackSpeed(Handle, speed);
+        CraMain.Instance.Players.Player_SetPlaybackSpeed(Handle, speed);
     }
 
     public void ResetTransition()
     {
         Debug.Assert(IsValid());
-        CraPlaybackManager.Instance.PlayerResetTransition(Handle);
+        CraMain.Instance.Players.Player_ResetTransition(Handle);
     }
 
     public bool IsLooping()
     {
         Debug.Assert(IsValid());
-        return CraPlaybackManager.Instance.PlayerIsLooping(Handle);
+        return CraMain.Instance.Players.Player_IsLooping(Handle);
     }
 
     public void SetLooping(bool loop)
     {
         Debug.Assert(IsValid());
-        CraPlaybackManager.Instance.PlayerSetLooping(Handle, loop);
+        CraMain.Instance.Players.Player_SetLooping(Handle, loop);
     }
 
     public bool IsFinished()
     {
         Debug.Assert(IsValid());
-        return CraPlaybackManager.Instance.PlayerIsFinished(Handle);
+        return CraMain.Instance.Players.Player_IsFinished(Handle);
+    }
+}
+
+public struct CraState
+{
+    public CraHandle Handle { get; private set; }
+
+    public static CraState None => new CraState { Handle = CraHandle.Invalid };
+
+    public static CraState CreateNew(CraPlayer player)
+    {
+        return new CraState
+        {
+            Handle = CraMain.Instance.StateMachines.State_New(player.Handle)
+        };
+    }
+
+    public bool IsValid()
+    {
+        return Handle.IsValid();
+    }
+
+    public bool NewTransition(CraState toState, in CraTransitionCondition condition)
+    {
+        return CraMain.Instance.StateMachines.Transition_New(Handle, toState.Handle, condition).IsValid();
+    }
+}
+
+public struct CraInput
+{
+    public CraHandle Handle { get; private set; }
+
+
+    public static CraInput CreateNew(CraStateMachine stateMachine)
+    {
+        return new CraInput
+        {
+            Handle = CraMain.Instance.StateMachines.Inputs_New(stateMachine.Handle)
+        };
+    }
+
+    public bool IsValid()
+    {
+        return Handle.IsValid();
+    }
+
+    public void SetInt(int value)
+    {
+        CraMain.Instance.StateMachines.Inputs_SetValueInt(Handle, value);
+    }
+
+    public void SetFloat(float value)
+    {
+        CraMain.Instance.StateMachines.Inputs_SetValueFloat(Handle, value);
+    }
+
+    public void SetBool(bool value)
+    {
+        CraMain.Instance.StateMachines.Inputs_SetValueBool(Handle, value);
     }
 }
 
 public struct CraLayer
 {
     public CraHandle Handle { get; private set; }
+    CraStateMachine Owner;
 
+    public static CraLayer None => new CraLayer { Handle = CraHandle.Invalid };
 
-    public static CraLayer CreateNew(int maxStates)
+    public static CraLayer CreateNew(CraStateMachine stateMachine, CraState activeState)
     {
         return new CraLayer
         {
-            Handle = CraAnimatorManager.Instance.LayerNew(maxStates)
+            Owner = stateMachine,
+            Handle = CraMain.Instance.StateMachines.Layer_New(stateMachine.Handle, activeState.Handle)
         };
     }
 
@@ -233,77 +514,22 @@ public struct CraLayer
         return Handle.IsValid();
     }
 
-    public int AddState(CraPlayer state)
+    public void SetActiveState(CraState state)
     {
-        Debug.Assert(Handle.IsValid());
-        return CraAnimatorManager.Instance.LayerAddState(Handle, state);
-    }
-
-    public CraPlayer GetCurrentState()
-    {
-        Debug.Assert(Handle.IsValid());
-        return CraAnimatorManager.Instance.LayerGetCurrentState(Handle);
-    }
-
-    public int GetCurrentStateIdx()
-    {
-        Debug.Assert(Handle.IsValid());
-        return CraAnimatorManager.Instance.LayerGetCurrentStateIdx(Handle);
-    }
-
-    public void SetState(int stateIdx)
-    {
-        Debug.Assert(Handle.IsValid());
-        CraAnimatorManager.Instance.LayerSetState(Handle, stateIdx);
-    }
-
-    public void CaptureBones()
-    {
-        Debug.Assert(Handle.IsValid());
-        CraAnimatorManager.Instance.LayerCaptureBones(Handle);
-    }
-
-    public void RestartState()
-    {
-        Debug.Assert(Handle.IsValid());
-        CraAnimatorManager.Instance.LayerRestartState(Handle);
-    }
-
-    public void TransitFromAboveLayer()
-    {
-        Debug.Assert(Handle.IsValid());
-        CraAnimatorManager.Instance.LayerTransitFromAboveLayer(Handle);
-    }
-
-    public void SetPlaybackSpeed(int stateIdx, float playbackSpeed)
-    {
-        Debug.Assert(Handle.IsValid());
-        CraAnimatorManager.Instance.LayerSetPlaybackSpeed(Handle, stateIdx, playbackSpeed);
-    }
-
-    public void AddOnTransitFinishedListener(Action callback)
-    {
-        Debug.Assert(Handle.IsValid());
-        CraAnimatorManager.Instance.LayerAddOnTransitFinishedListener(Handle, callback);
-    }
-
-    public void AddOnStateFinishedListener(Action callback)
-    {
-        Debug.Assert(Handle.IsValid());
-        CraAnimatorManager.Instance.LayerAddOnStateFinishedListener(Handle, callback);
+        Debug.Assert(Owner.IsValid());
+        CraMain.Instance.StateMachines.Layer_SetActiveState(Owner.Handle, Handle, state.Handle);
     }
 }
 
-public struct CraAnimator
+public struct CraStateMachine
 {
-    CraHandle Handle;
+    public CraHandle Handle { get; private set; }
 
-
-    public static CraAnimator CreateNew(int numLayers, int maxStatesPerLayerCount)
+    public static CraStateMachine CreateNew()
     {
-        return new CraAnimator
+        return new CraStateMachine
         {
-            Handle = CraAnimatorManager.Instance.AnimatorNew(numLayers, maxStatesPerLayerCount)
+            Handle = CraMain.Instance.StateMachines.StateMachine_New()
         };
     }
 
@@ -312,57 +538,171 @@ public struct CraAnimator
         return Handle.IsValid();
     }
 
-    public int AddState(int layer, CraPlayer state)
+    public void SetActive(bool active)
     {
-        Debug.Assert(Handle.IsValid());
-        return CraAnimatorManager.Instance.AnimatorAddState(Handle, layer, state);
+        CraMain.Instance.StateMachines.StateMachine_SetActive(Handle, active);
     }
 
-    public CraPlayer GetCurrentState(int layer)
+
+    public CraLayer NewLayer(CraState activeState)
     {
-        Debug.Assert(Handle.IsValid());
-        return CraAnimatorManager.Instance.AnimatorGetCurrentState(Handle, layer);
+        return CraLayer.CreateNew(this, activeState);
     }
 
-    public int GetCurrentStateIdx(int layer)
+    public CraInput NewInput()
     {
-        Debug.Assert(Handle.IsValid());
-        return CraAnimatorManager.Instance.AnimatorGetCurrentStateIdx(Handle, layer);
-    }
-
-    public void SetState(int layer, int stateIdx)
-    {
-        Debug.Assert(Handle.IsValid());
-        CraAnimatorManager.Instance.AnimatorSetState(Handle, layer, stateIdx);
-    }
-
-    public void SetPlaybackSpeed(int layer, int stateIdx, float playbackSpeed)
-    {
-        Debug.Assert(Handle.IsValid());
-        CraAnimatorManager.Instance.AnimatorSetPlaybackSpeed(Handle, layer, stateIdx, playbackSpeed);
-    }
-
-    public void RestartState(int layer)
-    {
-        Debug.Assert(Handle.IsValid());
-        CraAnimatorManager.Instance.AnimatorRestartState(Handle, layer);
-    }
-
-    public void AddOnTransitFinishedListener(Action<int> callback)
-    {
-        Debug.Assert(Handle.IsValid());
-        CraAnimatorManager.Instance.AnimatorAddOnTransitFinishedListener(Handle, callback);
-    }
-
-    public void AddOnStateFinishedListener(Action<int> callback)
-    {
-        Debug.Assert(Handle.IsValid());
-        CraAnimatorManager.Instance.AnimatorAddOnStateFinishedListener(Handle, callback);
-    }
-
-    public int GetNumLayers()
-    {
-        Debug.Assert(Handle.IsValid());
-        return CraAnimatorManager.Instance.AnimatorGetNumLayers(Handle);
+        return CraInput.CreateNew(this);
     }
 }
+
+//public struct CraLayer
+//{
+//    public CraHandle Handle { get; private set; }
+
+
+//    public static CraLayer CreateNew(int maxStates)
+//    {
+//        return new CraLayer
+//        {
+//            Handle = CraMain.Instance.StateMachine.LayerNew(maxStates)
+//        };
+//    }
+
+//    public bool IsValid()
+//    {
+//        return Handle.IsValid();
+//    }
+
+//    public int AddState(CraPlayer state)
+//    {
+//        Debug.Assert(Handle.IsValid());
+//        return CraMain.Instance.StateMachine.LayerAddState(Handle, state);
+//    }
+
+//    public CraPlayer GetCurrentState()
+//    {
+//        Debug.Assert(Handle.IsValid());
+//        return CraMain.Instance.StateMachine.LayerGetCurrentState(Handle);
+//    }
+
+//    public int GetCurrentStateIdx()
+//    {
+//        Debug.Assert(Handle.IsValid());
+//        return CraMain.Instance.StateMachine.LayerGetCurrentStateIdx(Handle);
+//    }
+
+//    public void SetState(int stateIdx)
+//    {
+//        Debug.Assert(Handle.IsValid());
+//        CraMain.Instance.StateMachine.LayerSetState(Handle, stateIdx);
+//    }
+
+//    public void CaptureBones()
+//    {
+//        Debug.Assert(Handle.IsValid());
+//        CraMain.Instance.StateMachine.LayerCaptureBones(Handle);
+//    }
+
+//    public void RestartState()
+//    {
+//        Debug.Assert(Handle.IsValid());
+//        CraMain.Instance.StateMachine.LayerRestartState(Handle);
+//    }
+
+//    public void TransitFromAboveLayer()
+//    {
+//        Debug.Assert(Handle.IsValid());
+//        CraMain.Instance.StateMachine.LayerTransitFromAboveLayer(Handle);
+//    }
+
+//    public void SetPlaybackSpeed(int stateIdx, float playbackSpeed)
+//    {
+//        Debug.Assert(Handle.IsValid());
+//        CraMain.Instance.StateMachine.LayerSetPlaybackSpeed(Handle, stateIdx, playbackSpeed);
+//    }
+
+//    public void AddOnTransitFinishedListener(Action callback)
+//    {
+//        Debug.Assert(Handle.IsValid());
+//        CraMain.Instance.StateMachine.LayerAddOnTransitFinishedListener(Handle, callback);
+//    }
+
+//    public void AddOnStateFinishedListener(Action callback)
+//    {
+//        Debug.Assert(Handle.IsValid());
+//        CraMain.Instance.StateMachine.LayerAddOnStateFinishedListener(Handle, callback);
+//    }
+//}
+
+//public struct CraAnimator
+//{
+//    CraHandle Handle;
+
+
+//    public static CraAnimator CreateNew(int numLayers, int maxStatesPerLayerCount)
+//    {
+//        return new CraAnimator
+//        {
+//            Handle = CraMain.Instance.StateMachine.AnimatorNew(numLayers, maxStatesPerLayerCount)
+//        };
+//    }
+
+//    public bool IsValid()
+//    {
+//        return Handle.IsValid();
+//    }
+
+//    public int AddState(int layer, CraPlayer state)
+//    {
+//        Debug.Assert(Handle.IsValid());
+//        return CraMain.Instance.StateMachine.AnimatorAddState(Handle, layer, state);
+//    }
+
+//    public CraPlayer GetCurrentState(int layer)
+//    {
+//        Debug.Assert(Handle.IsValid());
+//        return CraMain.Instance.StateMachine.AnimatorGetCurrentState(Handle, layer);
+//    }
+
+//    public int GetCurrentStateIdx(int layer)
+//    {
+//        Debug.Assert(Handle.IsValid());
+//        return CraMain.Instance.StateMachine.AnimatorGetCurrentStateIdx(Handle, layer);
+//    }
+
+//    public void SetState(int layer, int stateIdx)
+//    {
+//        Debug.Assert(Handle.IsValid());
+//        CraMain.Instance.StateMachine.AnimatorSetState(Handle, layer, stateIdx);
+//    }
+
+//    public void SetPlaybackSpeed(int layer, int stateIdx, float playbackSpeed)
+//    {
+//        Debug.Assert(Handle.IsValid());
+//        CraMain.Instance.StateMachine.AnimatorSetPlaybackSpeed(Handle, layer, stateIdx, playbackSpeed);
+//    }
+
+//    public void RestartState(int layer)
+//    {
+//        Debug.Assert(Handle.IsValid());
+//        CraMain.Instance.StateMachine.AnimatorRestartState(Handle, layer);
+//    }
+
+//    public void AddOnTransitFinishedListener(Action<int> callback)
+//    {
+//        Debug.Assert(Handle.IsValid());
+//        CraMain.Instance.StateMachine.AnimatorAddOnTransitFinishedListener(Handle, callback);
+//    }
+
+//    public void AddOnStateFinishedListener(Action<int> callback)
+//    {
+//        Debug.Assert(Handle.IsValid());
+//        CraMain.Instance.StateMachine.AnimatorAddOnStateFinishedListener(Handle, callback);
+//    }
+
+//    public int GetNumLayers()
+//    {
+//        Debug.Assert(Handle.IsValid());
+//        return CraMain.Instance.StateMachine.AnimatorGetNumLayers(Handle);
+//    }
+//}

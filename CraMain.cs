@@ -1,17 +1,34 @@
 using System;
+using UnityEngine;
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
 
+// Main root instance of Cra. Singleton. 
+// You can either place a CraMainComponent into your scene, or create an instance of this yourself.
 public class CraMain
 {
-    CraPlaybackManager Players;
-    CraAnimatorManager Animators;
+    public static CraMain Instance { get; private set; }
+    public CraPlaybackManager Players { get; private set; }
+    public CraStateMachineManager StateMachines { get; private set; }
+    public CraSettings Settings { get; private set; }
 
-    public CraMain()
+
+    public CraMain(CraSettings settings)
     {
-        Players = CraPlaybackManager.Get();
-        Animators = CraAnimatorManager.Get();
+        if (Instance != null)
+        {
+            throw new ArgumentException("Tried to instantiate more than one CraMain!");
+        }
+        if (settings.Players.Capacity % 4 != 0)
+        {
+            throw new ArgumentException("The capacity of players must be a multiple of 4!");
+        }
+
+        Settings = settings;
+        Players = new CraPlaybackManager();
+        StateMachines = new CraStateMachineManager();
+        Instance = this;
 
 #if UNITY_EDITOR
         EditorApplication.quitting += Destroy;
@@ -21,13 +38,13 @@ public class CraMain
     public void Tick()
     {
         Players.Tick();
-        Animators.Tick();
+        StateMachines.Tick();
     }
 
     public void Clear()
     {
         Players.Clear();
-        Animators.Clear();
+        StateMachines.Clear();
     }
 
     public void Destroy()
@@ -35,32 +52,7 @@ public class CraMain
         Players.Destroy();
         Players = null;
 
-        Animators.Destroy();
-        Animators = null;
+        StateMachines.Destroy();
+        StateMachines = null;
     }
-}
-
-public class CraStatistics
-{
-    public CraMeasure PlayerData;
-    public CraMeasure ClipData;
-    public CraMeasure BakedClipTransforms;
-    public CraMeasure BoneData;
-    public CraMeasure Bones;
-}
-
-public static class CraSettings
-{
-    public const int STATE_NONE = -1;
-    public const int MAX_PLAYERS = 32768;
-    public const int MAX_LAYERS = 4096;
-    public const int MAX_ANIMATORS = 2048;
-
-    public const int MAX_PLAYER_DATA = MAX_PLAYERS / 4;
-    public const int MAX_CLIP_DATA = 256;
-    public const int MAX_BAKED_CLIP_TRANSFORMS = 65535 * 4;
-    public const int MAX_BONE_DATA = 65535 * 4;
-    public const int MAX_BONES = 65535 * 4;
-
-    public static Func<string, int> BoneHashFunction;
 }
