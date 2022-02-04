@@ -23,15 +23,15 @@ public partial class CraMain
         CraBuffer<CraTransform> BakedClipTransforms;
 
         // int is an index pointing into ClipData
-        Dictionary<CraClip, int> KnownClipIndices = new Dictionary<CraClip, int>();
-        Dictionary<int, CraClip> KnownClips = new Dictionary<int, CraClip>();
+        Dictionary<CraSourceClip, CraHandle> KnownClipHandles = new Dictionary<CraSourceClip, CraHandle>();
+        Dictionary<CraHandle, CraSourceClip> KnownClips = new Dictionary<CraHandle, CraSourceClip>();
 
         // Map from a given Unity Transform into BoneData & Bones
         Dictionary<Transform, int> KnownBoneIndices = new Dictionary<Transform, int>();
 
         // for each bone in our memory buffer, provides a map to retrieve the bone's local
-        // bone index within a clip, i.e.     ClipIndex -> LocalBoneIndex
-        List<Dictionary<int, int>> BonePlayerClipIndices = new List<Dictionary<int, int>>();
+        // bone index within a clip, i.e.     ClipHandle -> LocalBoneIndex
+        List<Dictionary<CraHandle, int>> BonePlayerClipIndices = new List<Dictionary<CraHandle, int>>();
 
         // For each player, provide a list of bone indices into BoneData & Bones
         List<List<int>> PlayerAssignedBones = new List<List<int>>();
@@ -46,6 +46,53 @@ public partial class CraMain
 
             Instance.PlayerJob = new CraPlayJob();
             Instance.BoneJob = new CraBoneEvalJob();
+        }
+
+        public CraHandle Clip_New(CraSourceClip clip)
+        {
+            Debug.Assert(clip != null);
+
+            if (KnownClipHandles.TryGetValue(clip, out CraHandle clipHandle))
+            {
+                return clipHandle;
+            }
+
+            clipHandle = new CraHandle(ClipData.Alloc());
+            if (!clipHandle.IsValid())
+            {
+                return CraHandle.Invalid;
+            }
+
+            CraClipData data = ClipData.Get(clipHandle.Internal);
+            data.FPS = clip.Fps;
+            data.FrameCount = clip.FrameCount;
+            data.FrameOffset = BakedClipTransforms.GetNumAllocated();
+            ClipData.Set(clipHandle.Internal, in data);
+
+            KnownClipHandles.Add(clip, clipHandle);
+            KnownClips.Add(clipHandle, clip);
+
+            for (int i = 0; i < clip.Bones.Length; ++i)
+            {
+                if (clip.Bones[i].Curve.BakedFrames == null)
+                {
+                    Debug.LogError($"Given clip '{clip.Name}' is not baked!");
+                    return CraHandle.Invalid;
+                }
+
+                if (!BakedClipTransforms.AllocFrom(clip.Bones[i].Curve.BakedFrames))
+                {
+                    return CraHandle.Invalid;
+                }
+            }
+
+            return clipHandle;
+        }
+
+        public float Clip_GetDuration(CraHandle clip)
+        {
+            CraClipData data = ClipData.Get(clip.Internal);
+            return data.FrameCount / data.FPS;
         }
 
         public CraHandle Player_New()
@@ -77,33 +124,20 @@ public partial class CraMain
             return new CraHandle(Instance.PlayerCounter++);
         }
 
-        public void Player_SetClip(CraHandle player, CraClip clip)
+        public void Player_SetClip(CraHandle player, CraHandle clip)
         {
-            Debug.Assert(clip != null);
+            Debug.Assert(player.IsValid());
+            Debug.Assert(clip.IsValid());
 
             (CraPlayerData data, int subIdex) = PlayerGet(player);
-            int clipIdx = data.ClipIndex[subIdex];
-
-            if (clipIdx >= 0)
-            {
-                Debug.LogWarning($"Player {player.Internal} already has clip {clipIdx} assigned!");
-                return;
-            }
-
-            if (!KnownClipIndices.TryGetValue(clip, out clipIdx))
-            {
-                clipIdx = CopyClip(clip);
-                if (clipIdx < 0)
-                {
-                    Debug.LogError($"Setting clip {clip.Name} to Player {player.Internal} failed!");
-                    return;
-                }
-            }
-
-            data.ClipIndex[subIdex] = clipIdx;
-            data.Duration[subIdex] = clip.FrameCount / clip.Fps;
-            data.TransitionProgress[subIdex] = 1f;
+            data.ClipIndex[subIdex] = clip.Internal;
             PlayerSet(player, in data);
+        }
+
+        public CraHandle Player_GetClip(CraHandle player)
+        {
+            (CraPlayerData data, int subIdex) = PlayerGet(player);
+            return new CraHandle(data.ClipIndex[subIdex]);
         }
 
         public void Player_CaptureBones(CraHandle player)
@@ -114,12 +148,12 @@ public partial class CraMain
                 int boneIdx = boneIndices[i];
 
                 (CraPlayerData playerData, int subIdex) = PlayerGet(player);
-                int clipIdx = playerData.ClipIndex[subIdex];
+                CraHandle clip = new CraHandle(playerData.ClipIndex[subIdex]);
 
                 // Let the bone point to our Player and Clip
                 CraBoneData boneData = BoneData.Get(boneIdx);
                 boneData.PlayerIndex = player.Internal;
-                boneData.ClipBoneIndex = BonePlayerClipIndices[boneIdx][clipIdx];
+                boneData.ClipBoneIndex = BonePlayerClipIndices[boneIdx][clip];
                 BoneData.Set(boneIdx, in boneData);
             }
         }
@@ -148,12 +182,6 @@ public partial class CraMain
             return data.IsPlaying[subIdex];
         }
 
-        public float Player_GetDuration(CraHandle player)
-        {
-            (CraPlayerData data, int subIdex) = PlayerGet(player);
-            return data.Duration[subIdex];
-        }
-
         public float Player_GetPlayback(CraHandle player)
         {
             (CraPlayerData data, int subIdex) = PlayerGet(player);
@@ -163,14 +191,14 @@ public partial class CraMain
         internal static void Player_Play(NativeArray<CraPlayerData> playerData, CraHandle player, float transitionTime = 0.0f)
         {
             PlayerGet(playerData, player, out CraPlayerData data, out int subIdex);
-            if (data.PlaybackSpeed[subIdex] > 0f)
-            {
-                data.Playback[subIdex] = .001f;
-            }
-            else
-            {
-                data.Playback[subIdex] = data.Duration[subIdex] - .001f;
-            }
+            //if (data.PlaybackSpeed[subIdex] > 0f)
+            //{
+            //    data.Playback[subIdex] = .001f;
+            //}
+            //else
+            //{
+            //    data.Playback[subIdex] = data.Duration[subIdex] - .001f;
+            //}
             data.IsPlaying[subIdex] = true;
             data.TransitionTime[subIdex] = transitionTime;
             data.TransitionProgress[subIdex] = transitionTime > 0.0f ? 0f : 1f;
@@ -244,15 +272,15 @@ public partial class CraMain
             }
 
             (CraPlayerData data, int subIdex) = PlayerGet(player);
-            int clipIdx = data.ClipIndex[subIdex];
-            if (clipIdx < 0)
+            CraHandle clip = new CraHandle(data.ClipIndex[subIdex]);
+            if (!clip.IsValid())
             {
-                Debug.LogError($"Cannot assign Transform '{root.name}' to CraPlayer! No clip(s) set!");
+                Debug.LogError($"Cannot assign Transform '{root.name}' to CraPlayer! No CraClip set!");
                 return;
             }
 
-            CraClip clip = KnownClips[clipIdx];
-            PlayerAssignInternal(assignedBones, clip, clipIdx, root, mask);
+            CraSourceClip srcClip = KnownClips[clip];
+            PlayerAssignInternal(assignedBones, srcClip, clip, root, mask);
 
             data.TransitionProgress[subIdex] = 1f;
             PlayerSet(player, in data);
@@ -262,7 +290,7 @@ public partial class CraMain
 
 
 
-        void PlayerAssignInternal(List<int> assignedBones, CraClip clip, int clipIdx, Transform current, CraMask? mask = null, bool maskedChild = false)
+        void PlayerAssignInternal(List<int> assignedBones, CraSourceClip srcClip, CraHandle clip, Transform current, CraMask? mask = null, bool maskedChild = false)
         {
             void AddBone(int clipBoneIdx)
             {
@@ -271,7 +299,7 @@ public partial class CraMain
                 {
                     allocIdx = BoneData.Alloc();
                     KnownBoneIndices.Add(current, allocIdx);
-                    BonePlayerClipIndices.Add(new Dictionary<int, int>());
+                    BonePlayerClipIndices.Add(new Dictionary<CraHandle, int>());
                     Bones.Add(current);
 
                     Debug.Assert(KnownBoneIndices.Count == BoneData.GetNumAllocated());
@@ -279,13 +307,13 @@ public partial class CraMain
                     Debug.Assert(Bones.length == BoneData.GetNumAllocated());
                 }
 
-                BonePlayerClipIndices[allocIdx].Add(clipIdx, clipBoneIdx);
+                BonePlayerClipIndices[allocIdx].Add(clip, clipBoneIdx);
                 assignedBones.Add(allocIdx);
             }
 
             int boneHash = CraMain.Instance.Settings.BoneHashFunction(current.name);
             bool isMasked = false;
-            if (clip.BoneHashToIdx.TryGetValue(boneHash, out int clipBoneIdx))
+            if (srcClip.BoneHashToIdx.TryGetValue(boneHash, out int clipBoneIdx))
             {
                 if (mask.HasValue)
                 {
@@ -302,7 +330,7 @@ public partial class CraMain
             }
             for (int i = 0; i < current.childCount; ++i)
             {
-                PlayerAssignInternal(assignedBones, clip, clipIdx, current.GetChild(i), mask, isMasked);
+                PlayerAssignInternal(assignedBones, srcClip, clip, current.GetChild(i), mask, isMasked);
             }
         }
 
@@ -333,40 +361,6 @@ public partial class CraMain
             Instance.PlayerData.Set(dataIdx, in data);
         }
 
-        int CopyClip(CraClip clip)
-        {
-            int clipIdx = ClipData.Alloc();
-            if (clipIdx < 0)
-            {
-                return -1;
-            }
-
-            CraClipData data = ClipData.Get(clipIdx);
-            data.FPS = clip.Fps;
-            data.FrameCount = clip.FrameCount;
-            data.FrameOffset = BakedClipTransforms.GetNumAllocated();
-            ClipData.Set(clipIdx, in data);
-
-            KnownClipIndices.Add(clip, clipIdx);
-            KnownClips.Add(clipIdx, clip);
-
-            for (int i = 0; i < clip.Bones.Length; ++i)
-            {
-                if (clip.Bones[i].Curve.BakedFrames == null)
-                {
-                    Debug.LogError($"Given clip '{clip.Name}' is not fully baked!");
-                    return -1;
-                }
-
-                if (!BakedClipTransforms.AllocFrom(clip.Bones[i].Curve.BakedFrames))
-                {
-                    return -1;
-                }
-            }
-
-            return clipIdx;
-        }
-
         public void Clear()
         {
             Instance.PlayerData.Clear();
@@ -378,7 +372,7 @@ public partial class CraMain
             ClipData.Clear();
             BakedClipTransforms.Clear();
 
-            KnownClipIndices.Clear();
+            KnownClipHandles.Clear();
             KnownClips.Clear();
 
             KnownBoneIndices.Clear();
@@ -518,15 +512,16 @@ public partial class CraMain
                 }
 
                 CraClipData clip = ClipData[player.ClipIndex[i]];
+                float duration = clip.FrameCount / clip.FPS;
                 player.Playback[i] += DeltaTime * player.PlaybackSpeed[i];
 
                 if (player.PlaybackSpeed[i] > 0f)
                 {
-                    if (player.Playback[i] >= player.Duration[i])
+                    if (player.Playback[i] >= duration)
                     {
                         if (!player.Looping[i])
                         {
-                            player.Playback[i] = player.Duration[i] - 0.001f;
+                            player.Playback[i] = duration - 0.001f;
                             player.IsPlaying[i] = false;
                             player.Finished[i] = true;
                         }
@@ -554,8 +549,8 @@ public partial class CraMain
                         }
                         else
                         {
-                            player.Playback[i] = player.Duration[i];
-                            player.FrameIndex[i] = (int)math.floor(clip.FPS * player.Duration[i]);
+                            player.Playback[i] = duration;
+                            player.FrameIndex[i] = (int)math.floor(clip.FPS * duration);
                             player.Finished[i] = false;
                         }
                     }
@@ -638,7 +633,6 @@ public partial class CraMain
 
         // get only
         public bool4 Finished;
-        public float4 Duration;
         public int4 FrameIndex;
 
         // For Debug reasons only
@@ -651,7 +645,6 @@ public partial class CraMain
             sizeof(float) * 4 +
 
             sizeof(bool) * 4 +
-            sizeof(float) * 4 +
             sizeof(int) * 4;
     }
 }
