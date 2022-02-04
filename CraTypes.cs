@@ -87,9 +87,9 @@ public struct CraKey : IComparable
 public struct CraBone
 {
     public int BoneHash;
-    public CraTransformCurve Curve;
+    public CraSourceTransformCurve Curve;
 
-    public CraBone(string boneName, CraTransformCurve curve)
+    public CraBone(string boneName, CraSourceTransformCurve curve)
     {
         if (CraMain.Instance.Settings.BoneHashFunction == null)
         {
@@ -353,6 +353,35 @@ public struct CraSettings
     public Func<string, int> BoneHashFunction;
 }
 
+public struct CraClip
+{
+    public CraHandle Handle { get; private set; }
+    public static CraClip None => new CraClip { Handle = CraHandle.Invalid };
+
+    public static CraClip CreateNew(CraSourceClip srcClip)
+    {
+        return new CraClip
+        {
+            Handle = CraMain.Instance.Players.Clip_New(srcClip)
+        };
+    }
+
+    public CraClip(CraHandle clipHandle)
+    {
+        Handle = clipHandle;
+    }
+
+    public bool IsValid()
+    {
+        return Handle.IsValid();
+    }
+
+    public float GetDuration()
+    {
+        return CraMain.Instance.Players.Clip_GetDuration(Handle);
+    }
+}
+
 public struct CraPlayer
 {
     public CraHandle Handle { get; private set; }
@@ -387,7 +416,13 @@ public struct CraPlayer
     public void SetClip(CraClip clip)
     {
         Debug.Assert(IsValid());
-        CraMain.Instance.Players.Player_SetClip(Handle, clip);
+        CraMain.Instance.Players.Player_SetClip(Handle, clip.Handle);
+    }
+
+    public CraClip GetClip()
+    {
+        Debug.Assert(IsValid());
+        return new CraClip(CraMain.Instance.Players.Player_GetClip(Handle));
     }
 
     public void Assign(Transform root, CraMask? mask = null)
@@ -412,12 +447,6 @@ public struct CraPlayer
     {
         Debug.Assert(IsValid());
         return CraMain.Instance.Players.Player_IsPlaying(Handle);
-    }
-
-    public float GetDuration()
-    {
-        Debug.Assert(IsValid());
-        return CraMain.Instance.Players.Player_GetDuration(Handle);
     }
 
     public void Play(float transitionTime=0.0f)

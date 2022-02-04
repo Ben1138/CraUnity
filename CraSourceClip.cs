@@ -15,7 +15,7 @@ public enum CraInterpMethod
     NearestNeighbour
 }
 
-public class CraCurve
+public class CraSourceCurve
 {
     public List<CraKey> EditKeys = new List<CraKey>();
     public float[] BakedFrames;
@@ -107,7 +107,7 @@ public class CraCurve
     }
 }
 
-public class CraTransformCurve
+public class CraSourceTransformCurve
 {
     public int FrameCount { get; private set; }
     public float Fps { get; private set; } = 30f;
@@ -121,15 +121,15 @@ public class CraTransformCurve
     // 4 : pos X
     // 5 : pos Y
     // 6 : pos Z
-    public CraCurve[] Curves = new CraCurve[7];
+    public CraSourceCurve[] Curves = new CraSourceCurve[7];
 
     public CraTransform[] BakedFrames;
 
-    public CraTransformCurve()
+    public CraSourceTransformCurve()
     {
         for (int i = 0; i < 7; ++i)
         {
-            Curves[i] = new CraCurve();
+            Curves[i] = new CraSourceCurve();
         }
     }
 
@@ -254,7 +254,7 @@ public class CraTransformCurve
     }
 }
 
-public class CraClip
+public class CraSourceClip
 {
     public string Name;
     public float Fps { get; private set; } = -1f;    // -1 => not yet baked
