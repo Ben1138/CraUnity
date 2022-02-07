@@ -307,7 +307,14 @@ public partial class CraMain
                     Debug.Assert(Bones.length == BoneData.GetNumAllocated());
                 }
 
-                BonePlayerClipIndices[allocIdx].Add(clip, clipBoneIdx);
+                if (BonePlayerClipIndices[allocIdx].ContainsKey(clip))
+                {
+                    BonePlayerClipIndices[allocIdx][clip] = clipBoneIdx;
+                }
+                else
+                {
+                    BonePlayerClipIndices[allocIdx].Add(clip, clipBoneIdx);
+                }
                 assignedBones.Add(allocIdx);
             }
 

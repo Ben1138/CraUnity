@@ -391,6 +391,7 @@ public unsafe partial class CraMain
     struct CraStateMachineJob : IJobParallelFor
     {
         // Read + Write
+        [NativeDisableParallelForRestriction]
         public NativeArray<CraPlayerData> Players;
 
         // Read + Write
@@ -427,10 +428,10 @@ public unsafe partial class CraMain
                     var tranIdx = state.Transitions[ti];
                     var tran = Transitions[tranIdx];
                     bool transit =
+                        CheckCondition(tran.Or0, state) ||
                         CheckCondition(tran.Or1, state) ||
                         CheckCondition(tran.Or2, state) ||
-                        CheckCondition(tran.Or3, state) ||
-                        CheckCondition(tran.Or4, state);
+                        CheckCondition(tran.Or3, state);
 
                     if (transit)
                     {
@@ -458,20 +459,20 @@ public unsafe partial class CraMain
         bool HasAtLeastOneCondition(in CraConditionOr or)
         {
             return
+                or.And0.Type != CraConditionType.None ||
                 or.And1.Type != CraConditionType.None ||
                 or.And2.Type != CraConditionType.None ||
-                or.And3.Type != CraConditionType.None ||
-                or.And4.Type != CraConditionType.None;
+                or.And3.Type != CraConditionType.None;
         }
 
         bool CheckCondition(in CraConditionOr or, in CraStateData state)
         {
             return
                 HasAtLeastOneCondition(or) &&
+                CheckCondition(or.And0, state) &&
                 CheckCondition(or.And1, state) &&
                 CheckCondition(or.And2, state) &&
-                CheckCondition(or.And3, state) &&
-                CheckCondition(or.And4, state);
+                CheckCondition(or.And3, state);
         }
 
         bool CheckCondition(in CraCondition con, in CraStateData state)

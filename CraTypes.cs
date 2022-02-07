@@ -170,19 +170,19 @@ public struct CraCondition
 
 public struct CraConditionOr
 {
+    public CraCondition And0;
     public CraCondition And1;
     public CraCondition And2;
     public CraCondition And3;
-    public CraCondition And4;
 }
 
 public struct CraTransitionData
 {
     public CraState Target;
+    public CraConditionOr Or0;
     public CraConditionOr Or1;
     public CraConditionOr Or2;
     public CraConditionOr Or3;
-    public CraConditionOr Or4;
     public float TransitionTime;
 }
 
