@@ -23,6 +23,7 @@ public class CraStateMachineMonitor : EditorWindow
     CraTransition[][] StateTransitions;
     bool[] StatesFoldout;
 
+    Vector2 ScrollPos;
     bool ShowPlayer;
 
 
@@ -137,6 +138,8 @@ public class CraStateMachineMonitor : EditorWindow
             return;
         }
 
+        ScrollPos = EditorGUILayout.BeginScrollView(ScrollPos);
+
         CraState active = layer.GetActiveState();
         for (int si = 0; si < States.Length; ++si)
         {
@@ -164,10 +167,10 @@ public class CraStateMachineMonitor : EditorWindow
                         EditorGUILayout.LabelField("Transition Time:", $"{data.TransitionTime}");
                         EditorGUILayout.LabelField("Conditions:");
 
+                        DrawConditions(data.Or0);
                         DrawConditions(data.Or1);
                         DrawConditions(data.Or2);
                         DrawConditions(data.Or3);
-                        DrawConditions(data.Or4);
                     }
                 }
             }
@@ -215,15 +218,17 @@ public class CraStateMachineMonitor : EditorWindow
                 }
             }
         }
+
+        EditorGUILayout.EndScrollView();
     }
 
     int NumConditions(in CraConditionOr or)
     {
         int count = 0;
+        if (or.And0.Type != CraConditionType.None) count++;
         if (or.And1.Type != CraConditionType.None) count++;
         if (or.And2.Type != CraConditionType.None) count++;
         if (or.And3.Type != CraConditionType.None) count++;
-        if (or.And4.Type != CraConditionType.None) count++;
         return count;
     }
 
@@ -236,10 +241,10 @@ public class CraStateMachineMonitor : EditorWindow
         }
 
         EditorGUILayout.LabelField("  Or");
+        DrawCondition(Or.And0, numConds > 1);
         DrawCondition(Or.And1, numConds > 1);
         DrawCondition(Or.And2, numConds > 1);
         DrawCondition(Or.And3, numConds > 1);
-        DrawCondition(Or.And4, numConds > 1);
     }
 
     void DrawCondition(in CraCondition con, bool drawAnd)
