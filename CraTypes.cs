@@ -14,27 +14,27 @@ public interface ICraAnimated
 
 public struct CraHandle
 {
-    public int Internal { get; private set; }
+    public int Index { get; private set; }
     public static CraHandle Invalid => new CraHandle(-1);
 
-    public CraHandle(int internalHandle)
+    public CraHandle(int index)
     {
-        Internal = internalHandle;
+        Index = index;
     }
 
     public bool IsValid()
     {
-        return Internal >= 0;
+        return Index >= 0;
     }
 
     public static bool operator ==(CraHandle lhs, CraHandle rhs)
     {
-        return lhs.Internal == rhs.Internal;
+        return lhs.Index == rhs.Index;
     }
 
     public static bool operator !=(CraHandle lhs, CraHandle rhs)
     {
-        return lhs.Internal != rhs.Internal;
+        return lhs.Index != rhs.Index;
     }
 }
 
@@ -563,7 +563,7 @@ public struct CraState
         string name = CraMain.Instance.StateMachines.GetStateName(Handle);
         if (string.IsNullOrEmpty(name))
         {
-            name = $"State {Handle.Internal}";
+            name = $"State {Handle.Index}";
         }
         return name;
     }
@@ -623,7 +623,7 @@ public struct CraInput
         string name = CraMain.Instance.StateMachines.GetInputName(Handle);
         if (string.IsNullOrEmpty(name))
         {
-            name = $"Input {Handle.Internal}";
+            name = $"Input {Handle.Index}";
         }
         return name;
     }
