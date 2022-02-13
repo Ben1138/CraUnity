@@ -63,11 +63,11 @@ public partial class CraMain
                 return CraHandle.Invalid;
             }
 
-            CraClipData data = ClipData.Get(clipHandle.Internal);
+            CraClipData data = ClipData.Get(clipHandle.Index);
             data.FPS = clip.Fps;
             data.FrameCount = clip.FrameCount;
             data.FrameOffset = BakedClipTransforms.GetNumAllocated();
-            ClipData.Set(clipHandle.Internal, in data);
+            ClipData.Set(clipHandle.Index, in data);
 
             KnownClipHandles.Add(clip, clipHandle);
             KnownClips.Add(clipHandle, clip);
@@ -91,7 +91,7 @@ public partial class CraMain
 
         public float Clip_GetDuration(CraHandle clip)
         {
-            CraClipData data = ClipData.Get(clip.Internal);
+            CraClipData data = ClipData.Get(clip.Index);
             return data.FrameCount / data.FPS;
         }
 
@@ -130,7 +130,7 @@ public partial class CraMain
             Debug.Assert(clip.IsValid());
 
             (CraPlayerData data, int subIdex) = PlayerGet(player);
-            data.ClipIndex[subIdex] = clip.Internal;
+            data.ClipIndex[subIdex] = clip.Index;
             PlayerSet(player, in data);
         }
 
@@ -142,7 +142,7 @@ public partial class CraMain
 
         public void Player_CaptureBones(CraHandle player)
         {
-            List<int> boneIndices = PlayerAssignedBones[player.Internal];
+            List<int> boneIndices = PlayerAssignedBones[player.Index];
             for (int i = 0; i < boneIndices.Count; ++i)
             {
                 int boneIdx = boneIndices[i];
@@ -152,7 +152,7 @@ public partial class CraMain
 
                 // Let the bone point to our Player and Clip
                 CraBoneData boneData = BoneData.Get(boneIdx);
-                boneData.PlayerIndex = player.Internal;
+                boneData.PlayerIndex = player.Index;
                 boneData.ClipBoneIndex = BonePlayerClipIndices[boneIdx][clip];
                 BoneData.Set(boneIdx, in boneData);
             }
@@ -264,10 +264,10 @@ public partial class CraMain
                 throw new Exception("CraMain.Instance.Settings.BoneHashFunction is not assigned! You need to assign a custom hash function!");
             }
 
-            List<int> assignedBones = PlayerAssignedBones[player.Internal];
+            List<int> assignedBones = PlayerAssignedBones[player.Index];
             if (assignedBones.Count > 0)
             {
-                Debug.LogWarning($"Player {player.Internal} already has bones assigned!");
+                Debug.LogWarning($"Player {player.Index} already has bones assigned!");
                 return;
             }
 
@@ -343,8 +343,8 @@ public partial class CraMain
 
         static void PlayerGet(NativeArray<CraPlayerData> playerData, CraHandle player, out CraPlayerData outPlayer, out int outSubIndex)
         {
-            int dataIdx = player.Internal / 4;
-            outSubIndex = player.Internal % 4;
+            int dataIdx = player.Index / 4;
+            outSubIndex = player.Index % 4;
             outPlayer = playerData[dataIdx];
         }
 
@@ -356,7 +356,7 @@ public partial class CraMain
 
         static void PlayerSet(NativeArray<CraPlayerData> playerData, CraHandle player, in CraPlayerData data)
         {
-            int dataIdx = player.Internal / 4;
+            int dataIdx = player.Index / 4;
             Debug.Assert(playerData.IsCreated);
             Debug.Assert(dataIdx >= 0 && dataIdx < playerData.Length);
             playerData[dataIdx] = data;
@@ -364,7 +364,7 @@ public partial class CraMain
 
         void PlayerSet(CraHandle player, in CraPlayerData data)
         {
-            int dataIdx = player.Internal / 4;
+            int dataIdx = player.Index / 4;
             Instance.PlayerData.Set(dataIdx, in data);
         }
 

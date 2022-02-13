@@ -36,9 +36,9 @@ public unsafe partial class CraMain
         public CraHandle StateMachine_New()
         {
             var h = new CraHandle(StateMachines.Alloc());
-            var machine = StateMachines.Get(h.Internal);
+            var machine = StateMachines.Get(h.Index);
             machine.Active = true;
-            StateMachines.Set(h.Internal, machine);
+            StateMachines.Set(h.Index, machine);
 #if UNITY_EDITOR
             StateMachineLayerStates.Add(h, new List<CraHandle>[CraSettings.MaxLayers]);
 #endif
@@ -49,15 +49,15 @@ public unsafe partial class CraMain
         {
             Debug.Assert(stateMachine.IsValid());
 
-            var machine = StateMachines.Get(stateMachine.Internal);
+            var machine = StateMachines.Get(stateMachine.Index);
             machine.Active = active;
-            StateMachines.Set(stateMachine.Internal, machine);
+            StateMachines.Set(stateMachine.Index, machine);
         }
 
         public CraHandle[] StateMachine_GetLayers(CraHandle stateMachine)
         {
             Debug.Assert(stateMachine.IsValid());
-            var machine = StateMachines.Get(stateMachine.Internal);
+            var machine = StateMachines.Get(stateMachine.Index);
             CraHandle[] res = new CraHandle[machine.LayerCount];
             for (int i = 0; i < machine.LayerCount; ++i)
             {
@@ -69,7 +69,7 @@ public unsafe partial class CraMain
         public CraHandle[] StateMachine_GetInputs(CraHandle stateMachine)
         {
             Debug.Assert(stateMachine.IsValid());
-            var machine = StateMachines.Get(stateMachine.Internal);
+            var machine = StateMachines.Get(stateMachine.Index);
             CraHandle[] res = new CraHandle[machine.InputCount];
             for (int i = 0; i < machine.InputCount; ++i)
             {
@@ -82,7 +82,7 @@ public unsafe partial class CraMain
         {
             Debug.Assert(stateMachine.IsValid());
 
-            var machine = StateMachines.Get(stateMachine.Internal);
+            var machine = StateMachines.Get(stateMachine.Index);
             if (machine.InputCount >= CraSettings.MaxInputs)
             {
                 Debug.LogError($"Cannot add new input to state machine, maximum of {CraSettings.MaxInputs} exceeded!");
@@ -96,12 +96,12 @@ public unsafe partial class CraMain
                 return CraHandle.Invalid;
             }
 
-            var input = Inputs.Get(h.Internal);
+            var input = Inputs.Get(h.Index);
             input.Type = type;
-            Inputs.Set(h.Internal, input);
+            Inputs.Set(h.Index, input);
 
-            machine.Inputs[machine.InputCount++] = h.Internal;
-            StateMachines.Set(stateMachine.Internal, machine);
+            machine.Inputs[machine.InputCount++] = h.Index;
+            StateMachines.Set(stateMachine.Index, machine);
 
             return h;
         }
@@ -109,25 +109,25 @@ public unsafe partial class CraMain
         public CraValueUnion Inputs_GetValue(CraHandle inputHandle)
         {
             Debug.Assert(inputHandle.IsValid());
-            return Inputs.Get(inputHandle.Internal);
+            return Inputs.Get(inputHandle.Index);
         }
 
         public void Inputs_SetValueInt(CraHandle inputHandle, int value)
         {
             Debug.Assert(inputHandle.IsValid());
-            var input = Inputs.Get(inputHandle.Internal);
+            var input = Inputs.Get(inputHandle.Index);
             Debug.Assert(input.Type == CraValueType.Int);
             input.ValueInt = value;
-            Inputs.Set(inputHandle.Internal, input);
+            Inputs.Set(inputHandle.Index, input);
         }
 
         public void Inputs_SetValueFloat(CraHandle inputHandle, float value)
         {
             Debug.Assert(inputHandle.IsValid());
-            var input = Inputs.Get(inputHandle.Internal);
+            var input = Inputs.Get(inputHandle.Index);
             Debug.Assert(input.Type == CraValueType.Float);
             input.ValueFloat = value;
-            Inputs.Set(inputHandle.Internal, input);
+            Inputs.Set(inputHandle.Index, input);
         }
 
         public void Inputs_SetValueBool(CraHandle inputHandle, bool value)
@@ -137,10 +137,10 @@ public unsafe partial class CraMain
             lock (Instance.Lock)
             {
                 Debug.Assert(inputHandle.IsValid());
-                var input = Inputs.Get(inputHandle.Internal);
+                var input = Inputs.Get(inputHandle.Index);
                 Debug.Assert(input.Type == CraValueType.Bool);
                 input.ValueBool = value;
-                Inputs.Set(inputHandle.Internal, input);
+                Inputs.Set(inputHandle.Index, input);
             }
         }
 
@@ -148,7 +148,7 @@ public unsafe partial class CraMain
         {
             Debug.Assert(stateMachine.IsValid());
 
-            var machine = StateMachines.Get(stateMachine.Internal);
+            var machine = StateMachines.Get(stateMachine.Index);
             if (machine.LayerCount >= CraSettings.MaxLayers)
             {
                 Debug.LogError($"Cannot add new layer to state machine, maximum of {CraSettings.MaxLayers} exceeded!");
@@ -162,7 +162,7 @@ public unsafe partial class CraMain
             machine.ActiveState[layerIdx] = -1;
             machine.LayerCount++;
 
-            StateMachines.Set(stateMachine.Internal, machine);
+            StateMachines.Set(stateMachine.Index, machine);
             return new CraHandle(layerIdx);
         }
 
@@ -170,13 +170,13 @@ public unsafe partial class CraMain
         {
             Debug.Assert(stateMachine.IsValid());
             Debug.Assert(layer.IsValid());
-            var machine = StateMachines.Get(stateMachine.Internal);
-            return new CraHandle(machine.ActiveState[layer.Internal]);
+            var machine = StateMachines.Get(stateMachine.Index);
+            return new CraHandle(machine.ActiveState[layer.Index]);
         }
 #if UNITY_EDITOR
         public CraHandle[] Layer_GetAllStates(CraHandle stateMachine, CraHandle layer)
         {
-            return StateMachineLayerStates[stateMachine][layer.Internal].ToArray();
+            return StateMachineLayerStates[stateMachine][layer.Index].ToArray();
         }
 #endif
         public void Layer_SetActiveState(CraHandle stateMachine, CraHandle layer, CraHandle activeState)
@@ -185,18 +185,18 @@ public unsafe partial class CraMain
             Debug.Assert(layer.IsValid());
             Debug.Assert(activeState.IsValid());
 #if UNITY_EDITOR
-            if (!StateMachineLayerStates[stateMachine][layer.Internal].Contains(activeState))
+            if (!StateMachineLayerStates[stateMachine][layer.Index].Contains(activeState))
             {
-                Debug.LogError($"Tried to set layer {layer.Internal} of state machine {stateMachine.Internal} to active state {activeState.Internal}, which does not resides in said layer!");
+                Debug.LogError($"Tried to set layer {layer.Index} of state machine {stateMachine.Index} to active state {activeState.Index}, which does not resides in said layer!");
                 return;
             }
 #endif
-            var machine = StateMachines.Get(stateMachine.Internal);
-            machine.ActiveState[layer.Internal] = activeState.Internal;
-            machine.Transitioning[layer.Internal] = true;
-            StateMachines.Set(stateMachine.Internal, machine);
+            var machine = StateMachines.Get(stateMachine.Index);
+            machine.ActiveState[layer.Index] = activeState.Index;
+            machine.Transitioning[layer.Index] = true;
+            StateMachines.Set(stateMachine.Index, machine);
 
-            var state = States.Get(activeState.Internal);
+            var state = States.Get(activeState.Index);
             if (state.Player.IsValid())
             {
                 Instance.Players.Player_Play(state.Player);
@@ -211,11 +211,11 @@ public unsafe partial class CraMain
                 Debug.LogError($"Allocation of new state failed!");
                 return CraHandle.Invalid;
             }
-            var state = States.Get(h.Internal);
+            var state = States.Get(h.Index);
             state.Player = player;
-            States.Set(h.Internal, state);
+            States.Set(h.Index, state);
 #if UNITY_EDITOR
-            StateMachineLayerStates[stateMachine][layerHandle.Internal].Add(h);
+            StateMachineLayerStates[stateMachine][layerHandle.Index].Add(h);
 #endif
             return h;
         }
@@ -224,7 +224,7 @@ public unsafe partial class CraMain
         {
             Debug.Assert(stateHandle.IsValid());
 
-            var state = States.Get(stateHandle.Internal);
+            var state = States.Get(stateHandle.Index);
             CraHandle[] transitions = new CraHandle[state.TransitionsCount];
             for (int i = 0; i < state.TransitionsCount; ++i)
             {
@@ -237,7 +237,7 @@ public unsafe partial class CraMain
         {
             Debug.Assert(stateHandle.IsValid());
 
-            var state = States.Get(stateHandle.Internal);
+            var state = States.Get(stateHandle.Index);
             return state.Player;
         }
 
@@ -245,7 +245,7 @@ public unsafe partial class CraMain
         {
             Debug.Assert(transition.Target.IsValid());
 
-            var state = States.Get(stateHandle.Internal);
+            var state = States.Get(stateHandle.Index);
             if (state.TransitionsCount >= CraSettings.MaxTransitions)
             {
                 Debug.LogError($"Cannot add new transition to state, maximum of {CraSettings.MaxTransitions} exceeded!");
@@ -258,10 +258,10 @@ public unsafe partial class CraMain
                 Debug.LogError($"Allocation of new transition failed!");
                 return CraHandle.Invalid;
             }
-            Transitions.Set(h.Internal, transition);
+            Transitions.Set(h.Index, transition);
 
-            state.Transitions[state.TransitionsCount++] = h.Internal;
-            States.Set(stateHandle.Internal, state);
+            state.Transitions[state.TransitionsCount++] = h.Index;
+            States.Set(stateHandle.Index, state);
 
             return h;
         }
@@ -310,7 +310,7 @@ public unsafe partial class CraMain
         public CraTransitionData Transition_GetData(CraHandle transitionHandle)
         {
             Debug.Assert(transitionHandle.IsValid());
-            return Transitions.Get(transitionHandle.Internal);
+            return Transitions.Get(transitionHandle.Index);
         }
 
         public void Schedule(JobHandle playerJob)
@@ -439,7 +439,7 @@ public unsafe partial class CraMain
                         {
                             CraPlaybackManager.Player_Reset(Players, state.Player);
                         }
-                        machine.ActiveState[li] = tran.Target.Handle.Internal;
+                        machine.ActiveState[li] = tran.Target.Handle.Index;
                         machine.Transitioning[li] = true;
                         var newState = States[machine.ActiveState[li]];
                         if (newState.Player.IsValid())
@@ -484,7 +484,7 @@ public unsafe partial class CraMain
 
             int valueInt = con.ValueAsAbsolute ? Mathf.Abs(con.Value.ValueInt) : con.Value.ValueInt;
             float valueFloat = con.ValueAsAbsolute ? Mathf.Abs(con.Value.ValueFloat) : con.Value.ValueFloat;
-            var input = Inputs[con.Input.Handle.Internal];
+            var input = Inputs[con.Input.Handle.Index];
 
             bool conditionMet = false;
             if (con.Type == CraConditionType.Equal && con.Input.IsValid())
@@ -522,7 +522,7 @@ public unsafe partial class CraMain
             {
                 conditionMet = input.Type == CraValueType.Bool && con.Value.ValueBool;
                 input.ValueBool = false;
-                Inputs[con.Input.Handle.Internal] = input;
+                Inputs[con.Input.Handle.Index] = input;
             }
             else if (con.Type == CraConditionType.IsFinished && state.Player.IsValid() && CraPlaybackManager.Player_IsFinished(Players, state.Player))
             {
