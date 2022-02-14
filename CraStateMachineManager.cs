@@ -50,7 +50,37 @@ public unsafe partial class CraMain
             Debug.Assert(stateMachine.IsValid());
 
             var machine = StateMachines.Get(stateMachine.Index);
+            if (machine.Active == active)
+            {
+                return;
+            }
+
             machine.Active = active;
+            if (active)
+            {
+                for (int i = 0; i < machine.LayerCount; ++i)
+                {
+                    machine.Transitioning[i] = true;
+                    if (machine.ActiveState[i] >= 0)
+                    {
+                        CraStateData data = States.Get(machine.ActiveState[i]);
+                        CraPlaybackManager.Player_Play(Instance.PlayerData.GetMemoryBuffer(), data.Player);
+                    }
+                }
+            }
+            else
+            {
+                for (int i = 0; i < machine.LayerCount; ++i)
+                {
+                    machine.Transitioning[i] = false;
+                    if (machine.ActiveState[i] >= 0)
+                    {
+                        CraStateData data = States.Get(machine.ActiveState[i]);
+                        CraPlaybackManager.Player_Reset(Instance.PlayerData.GetMemoryBuffer(), data.Player);
+                    }
+                }
+            }
+
             StateMachines.Set(stateMachine.Index, machine);
         }
 
@@ -187,7 +217,7 @@ public unsafe partial class CraMain
 #if UNITY_EDITOR
             if (!StateMachineLayerStates[stateMachine][layer.Index].Contains(activeState))
             {
-                Debug.LogError($"Tried to set layer {layer.Index} of state machine {stateMachine.Index} to active state {activeState.Index}, which does not resides in said layer!");
+                Debug.LogError($"Tried to set layer {layer.Index} of state machine {stateMachine.Index} to active state {activeState.Index}, which does not reside in said layer!");
                 return;
             }
 #endif
@@ -305,6 +335,28 @@ public unsafe partial class CraMain
                 InputNames.Add(input, name);
             }
         }
+        public unsafe void UpdateStatistics()
+        {
+            Instance.Statistics.StateMachines.MaxElements = StateMachines.GetCapacity();
+            Instance.Statistics.StateMachines.MaxBytes = (ulong)StateMachines.GetCapacity() * (ulong)sizeof(CraStateMachineData);
+            Instance.Statistics.StateMachines.CurrentElements = StateMachines.GetNumAllocated();
+            Instance.Statistics.StateMachines.CurrentBytes = (ulong)StateMachines.GetNumAllocated() * (ulong)sizeof(CraStateMachineData);
+
+            Instance.Statistics.Inputs.MaxElements = Inputs.GetCapacity();
+            Instance.Statistics.Inputs.MaxBytes = (ulong)Inputs.GetCapacity() * (ulong)sizeof(CraValueUnion);
+            Instance.Statistics.Inputs.CurrentElements = Inputs.GetNumAllocated();
+            Instance.Statistics.Inputs.CurrentBytes = (ulong)Inputs.GetNumAllocated() * (ulong)sizeof(CraValueUnion);
+
+            Instance.Statistics.States.MaxElements = States.GetCapacity();
+            Instance.Statistics.States.MaxBytes = (ulong)States.GetCapacity() * (ulong)sizeof(CraStateData);
+            Instance.Statistics.States.CurrentElements = States.GetNumAllocated();
+            Instance.Statistics.States.CurrentBytes = (ulong)States.GetNumAllocated() * (ulong)sizeof(CraStateData);
+
+            Instance.Statistics.Transitions.MaxElements = Transitions.GetCapacity();
+            Instance.Statistics.Transitions.MaxBytes = (ulong)Transitions.GetCapacity() * (ulong)sizeof(CraStateData);
+            Instance.Statistics.Transitions.CurrentElements = Transitions.GetNumAllocated();
+            Instance.Statistics.Transitions.CurrentBytes = (ulong)Transitions.GetNumAllocated() * (ulong)sizeof(CraTransitionData);
+        }
 #endif
 
         public CraTransitionData Transition_GetData(CraHandle transitionHandle)
@@ -411,6 +463,7 @@ public unsafe partial class CraMain
         public void Execute(int index)
         {
             var machine = StateMachines[index];
+            if (!machine.Active) return;
 
             // Maybe also parallelize layers
             for (int li = 0; li < machine.LayerCount; ++li)
@@ -482,45 +535,45 @@ public unsafe partial class CraMain
                 return true;
             }
 
-            int valueInt = con.ValueAsAbsolute ? Mathf.Abs(con.Value.ValueInt) : con.Value.ValueInt;
-            float valueFloat = con.ValueAsAbsolute ? Mathf.Abs(con.Value.ValueFloat) : con.Value.ValueFloat;
             var input = Inputs[con.Input.Handle.Index];
+            int valueInt = con.CompareToAbsolute ? Mathf.Abs(input.ValueInt) : input.ValueInt;
+            float valueFloat = con.CompareToAbsolute ? Mathf.Abs(input.ValueFloat) : input.ValueFloat;
 
             bool conditionMet = false;
             if (con.Type == CraConditionType.Equal && con.Input.IsValid())
             {
                 conditionMet =
-                    (input.Type == CraValueType.Int && input.ValueInt == valueInt) ||
-                    (input.Type == CraValueType.Float && input.ValueFloat == valueFloat) ||
-                    (input.Type == CraValueType.Bool && con.Value.ValueBool == input.ValueBool);
+                    (input.Type == CraValueType.Int && valueInt == con.Value.ValueInt) ||
+                    (input.Type == CraValueType.Float && valueFloat == con.Value.ValueFloat) ||
+                    (input.Type == CraValueType.Bool && input.ValueBool == con.Value.ValueBool);
             }
             else if (con.Type == CraConditionType.Greater && con.Input.IsValid())
             {
                 conditionMet =
-                    (input.Type == CraValueType.Int && input.ValueInt > valueInt) ||
-                    (input.Type == CraValueType.Float && input.ValueFloat > valueFloat);
+                    (input.Type == CraValueType.Int && valueInt > con.Value.ValueInt) ||
+                    (input.Type == CraValueType.Float && valueFloat > con.Value.ValueFloat);
             }
             else if (con.Type == CraConditionType.GreaterOrEqual && con.Input.IsValid())
             {
                 conditionMet =
-                    (input.Type == CraValueType.Int && input.ValueInt >= valueInt) ||
-                    (input.Type == CraValueType.Float && input.ValueFloat >= valueFloat);
+                    (input.Type == CraValueType.Int && valueInt >= con.Value.ValueInt) ||
+                    (input.Type == CraValueType.Float && valueFloat >= con.Value.ValueFloat);
             }
             else if (con.Type == CraConditionType.Less && con.Input.IsValid())
             {
                 conditionMet =
-                    (input.Type == CraValueType.Int && input.ValueInt < valueInt) ||
-                    (input.Type == CraValueType.Float && input.ValueFloat < valueFloat);
+                    (input.Type == CraValueType.Int && valueInt < con.Value.ValueInt) ||
+                    (input.Type == CraValueType.Float && valueFloat < con.Value.ValueFloat);
             }
             else if (con.Type == CraConditionType.LessOrEqual && con.Input.IsValid())
             {
                 conditionMet =
-                    (input.Type == CraValueType.Int && input.ValueInt <= valueInt) ||
-                    (input.Type == CraValueType.Float && input.ValueFloat <= valueFloat);
+                    (input.Type == CraValueType.Int && valueInt <= con.Value.ValueInt) ||
+                    (input.Type == CraValueType.Float && valueFloat <= con.Value.ValueFloat);
             }
             else if (con.Type == CraConditionType.Trigger && con.Input.IsValid())
             {
-                conditionMet = input.Type == CraValueType.Bool && con.Value.ValueBool;
+                conditionMet = input.Type == CraValueType.Bool && input.ValueBool;
                 input.ValueBool = false;
                 Inputs[con.Input.Handle.Index] = input;
             }

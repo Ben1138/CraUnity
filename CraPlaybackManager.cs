@@ -419,36 +419,30 @@ public partial class CraMain
             return playerJob;
         }
 
-        public void UpdateStatistics()
+        public unsafe void UpdateStatistics()
         {
             Instance.Statistics.PlayerData.MaxElements = Instance.PlayerData.GetCapacity();
-            Instance.Statistics.PlayerData.MaxBytes = CraPlayerData.SIZE * (ulong)Instance.PlayerData.GetCapacity();
+            Instance.Statistics.PlayerData.MaxBytes = (ulong)sizeof(CraPlayerData) * (ulong)Instance.PlayerData.GetCapacity();
+            Instance.Statistics.PlayerData.CurrentElements = Instance.PlayerData.GetNumAllocated();
+            Instance.Statistics.PlayerData.CurrentBytes = (ulong)sizeof(CraPlayerData) * (ulong)Instance.PlayerData.GetNumAllocated();
 
             Instance.Statistics.ClipData.MaxElements = ClipData.GetCapacity();
-            Instance.Statistics.ClipData.MaxBytes = CraClipData.SIZE * (ulong)ClipData.GetCapacity();
+            Instance.Statistics.ClipData.MaxBytes = (ulong)sizeof(CraClipData) * (ulong)ClipData.GetCapacity();
+            Instance.Statistics.ClipData.CurrentElements = ClipData.GetNumAllocated();
+            Instance.Statistics.ClipData.CurrentBytes = (ulong)sizeof(CraClipData) * (ulong)ClipData.GetNumAllocated();
 
             Instance.Statistics.BakedClipTransforms.MaxElements = BakedClipTransforms.GetCapacity();
-            Instance.Statistics.BakedClipTransforms.MaxBytes = CraTransform.SIZE * (ulong)BakedClipTransforms.GetCapacity();
+            Instance.Statistics.BakedClipTransforms.MaxBytes = (ulong)sizeof(CraTransform) * (ulong)BakedClipTransforms.GetCapacity();
+            Instance.Statistics.BakedClipTransforms.CurrentElements = BakedClipTransforms.GetNumAllocated();
+            Instance.Statistics.BakedClipTransforms.CurrentBytes = (ulong)sizeof(CraTransform) * (ulong)BakedClipTransforms.GetNumAllocated();
 
             Instance.Statistics.BoneData.MaxElements = BoneData.GetCapacity();
-            Instance.Statistics.BoneData.MaxBytes = CraBoneData.SIZE * (ulong)BoneData.GetCapacity();
+            Instance.Statistics.BoneData.MaxBytes = (ulong)sizeof(CraBoneData) * (ulong)BoneData.GetCapacity();
+            Instance.Statistics.BoneData.CurrentElements = BoneData.GetNumAllocated();
+            Instance.Statistics.BoneData.CurrentBytes = (ulong)sizeof(CraBoneData) * (ulong)BoneData.GetNumAllocated();
 
             Instance.Statistics.Bones.MaxElements = Bones.capacity;
             Instance.Statistics.Bones.MaxBytes = (sizeof(bool) + sizeof(int) * 2) * (ulong)Bones.capacity;
-
-
-            Instance.Statistics.PlayerData.CurrentElements = Instance.PlayerData.GetNumAllocated();
-            Instance.Statistics.PlayerData.CurrentBytes = CraPlayerData.SIZE * (ulong)Instance.PlayerData.GetNumAllocated();
-
-            Instance.Statistics.ClipData.CurrentElements = ClipData.GetNumAllocated();
-            Instance.Statistics.ClipData.CurrentBytes = CraClipData.SIZE * (ulong)ClipData.GetNumAllocated();
-
-            Instance.Statistics.BakedClipTransforms.CurrentElements = BakedClipTransforms.GetNumAllocated();
-            Instance.Statistics.BakedClipTransforms.CurrentBytes = CraTransform.SIZE * (ulong)BakedClipTransforms.GetNumAllocated();
-
-            Instance.Statistics.BoneData.CurrentElements = BoneData.GetNumAllocated();
-            Instance.Statistics.BoneData.CurrentBytes = CraBoneData.SIZE * (ulong)BoneData.GetNumAllocated();
-
             Instance.Statistics.Bones.CurrentElements = Bones.length;
             Instance.Statistics.Bones.CurrentBytes = (sizeof(bool) + sizeof(int) * 2) * (ulong)Bones.length;
         }
@@ -462,12 +456,6 @@ public partial class CraMain
         // Offset into BakedClipTransforms memory
         public int FrameOffset;
         public int FrameCount;
-
-        // For Debug reasons only
-        public const ulong SIZE =
-            sizeof(float) +
-            sizeof(int) +
-            sizeof(int);
     }
 
     // Describes what player and clip this particular bone is assigned to
@@ -482,11 +470,6 @@ public partial class CraMain
         // into BakedClipTransforms not only per Clip, but
         // also per Bone within a Clip
         public int ClipBoneIndex;
-
-        // For Debug reasons only
-        public const ulong SIZE =
-            sizeof(int) +
-            sizeof(int);
     }
 
     [BurstCompile]
@@ -641,17 +624,5 @@ public partial class CraMain
         // get only
         public bool4 Finished;
         public int4 FrameIndex;
-
-        // For Debug reasons only
-        public const ulong SIZE =
-            sizeof(int) * 4 +
-            sizeof(bool) * 4 +
-            sizeof(bool) * 4 +
-            sizeof(float) * 4 +
-            sizeof(float) * 4 +
-            sizeof(float) * 4 +
-
-            sizeof(bool) * 4 +
-            sizeof(int) * 4;
     }
 }

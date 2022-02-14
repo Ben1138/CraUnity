@@ -63,6 +63,7 @@ public unsafe partial class CraMain
 
 #if UNITY_EDITOR
         Players.UpdateStatistics();
+        StateMachines.UpdateStatistics();
 #endif
     }
 
