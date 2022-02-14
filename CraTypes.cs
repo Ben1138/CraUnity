@@ -48,11 +48,6 @@ public struct CraTransform
     //    CraTransform other = (CraTransform)obj;
     //    return (Vector3)other.Position == (Vector3)Position && new Quaternion(other.Rotation.x, other.Rotation.y, other.Rotation.z, other.Rotation.w) == new Quaternion(Rotation.x, Rotation.y, Rotation.z, Rotation.w);
     //}
-
-    // For Debug reasons only
-    public const ulong SIZE =
-        sizeof(float) * 3 +
-        sizeof(float) * 4;
 }
 
 public struct CraMeasure
@@ -165,7 +160,7 @@ public struct CraCondition
     public CraConditionType Type;
     public CraInput Input;
     public CraValueUnion Value;
-    public bool ValueAsAbsolute;
+    public bool CompareToAbsolute;
 }
 
 public struct CraConditionOr
@@ -323,6 +318,11 @@ public class CraStatistics
     public CraMeasure BakedClipTransforms;
     public CraMeasure BoneData;
     public CraMeasure Bones;
+
+    public CraMeasure StateMachines;
+    public CraMeasure Inputs;
+    public CraMeasure States;
+    public CraMeasure Transitions;
 }
 #endif
 
@@ -346,9 +346,9 @@ public struct CraSettings
 
     public int MaxBones;
 
-    public const int MaxTransitions = 5;
+    public const int MaxTransitions = 20;
     public const int MaxLayers = 5;
-    public const int MaxInputs = 5;
+    public const int MaxInputs = 10;
 
     public Func<string, int> BoneHashFunction;
 }

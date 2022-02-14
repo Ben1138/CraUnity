@@ -106,7 +106,7 @@ public class CraStateMachineMonitor : EditorWindow
                         EditorGUILayout.LabelField($"{Inputs[i].GetName()}:", $"{value.ValueFloat} (float)");
                         break;
                     case CraValueType.Bool:
-                        EditorGUILayout.LabelField($"{Inputs[i].GetName()}:", $"{value.ValueFloat} (bool)");
+                        EditorGUILayout.LabelField($"{Inputs[i].GetName()}:", $"{value.ValueBool} (bool)");
                         break;
                     default:
                         EditorGUILayout.LabelField($"{Inputs[i].GetName()}:", "UNHANDLED TYPE");

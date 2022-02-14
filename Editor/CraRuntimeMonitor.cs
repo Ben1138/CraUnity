@@ -15,6 +15,7 @@ public class CraRuntimeMonitor : EditorWindow
 
 
     string[] Abr = new string[] { "B", "KB", "MB", "GB", "TB" };
+    Vector2 Scroll;
 
 
     void Update()
@@ -34,10 +35,10 @@ public class CraRuntimeMonitor : EditorWindow
         return string.Format("{0:0.##} {1}", num, Abr[abrCounter]);
     }
 
-    void DisplayMeasure(string display, ref CraMeasure measure)
+    void DisplayMeasure(string display, in CraMeasure measure)
     {
-        EditorGUILayout.LabelField(display + " Elements", measure.CurrentElements + " / " + measure.MaxElements);
-        EditorGUILayout.LabelField(display + " Memory", FormatBytes(measure.CurrentBytes) + " / " + FormatBytes(measure.MaxBytes));
+        EditorGUILayout.LabelField($"{display} Elements", $"{measure.CurrentElements:n0} / {measure.MaxElements:n0}");
+        EditorGUILayout.LabelField($"{display} Memory", $"{FormatBytes(measure.CurrentBytes)} / {FormatBytes(measure.MaxBytes)}");
         EditorGUILayout.Space();
     }
 
@@ -45,26 +46,42 @@ public class CraRuntimeMonitor : EditorWindow
     {
         if (CraMain.Instance != null)
         {
+            Scroll = EditorGUILayout.BeginScrollView(Scroll);
             CraStatistics stats = CraMain.Instance.Statistics;
-            DisplayMeasure("Playback", ref stats.PlayerData);
-            DisplayMeasure("Clip", ref stats.ClipData);
-            DisplayMeasure("Baked", ref stats.BakedClipTransforms);
-            DisplayMeasure("Bone", ref stats.BoneData);
-            DisplayMeasure("Transforms", ref stats.Bones);
+            DisplayMeasure("Playback", in stats.PlayerData);
+            DisplayMeasure("Clip", in stats.ClipData);
+            DisplayMeasure("Baked", in stats.BakedClipTransforms);
+            DisplayMeasure("Bone", in stats.BoneData);
+            DisplayMeasure("Transforms", in stats.Bones);
+            EditorGUILayout.Space();
+            DisplayMeasure("StateMachines", in stats.StateMachines);
+            DisplayMeasure("Inputs", in stats.Inputs);
+            DisplayMeasure("States", in stats.States);
+            DisplayMeasure("Transitions", in stats.Transitions);
+            EditorGUILayout.Space();
             EditorGUILayout.Space();
             ulong totalBytes =
                 stats.PlayerData.CurrentBytes +
                 stats.ClipData.CurrentBytes +
                 stats.BakedClipTransforms.CurrentBytes +
                 stats.BoneData.CurrentBytes +
-                stats.Bones.CurrentBytes;
+                stats.Bones.CurrentBytes +
+                stats.StateMachines.CurrentBytes +
+                stats.Inputs.CurrentBytes +
+                stats.States.CurrentBytes +
+                stats.Transitions.CurrentBytes;
             ulong totalMaxBytes =
                 stats.PlayerData.MaxBytes +
                 stats.ClipData.MaxBytes +
                 stats.BakedClipTransforms.MaxBytes +
                 stats.BoneData.MaxBytes +
-                stats.Bones.MaxBytes;
+                stats.Bones.MaxBytes +
+                stats.StateMachines.MaxBytes +
+                stats.Inputs.MaxBytes +
+                stats.States.MaxBytes +
+                stats.Transitions.MaxBytes;
             EditorGUILayout.LabelField("Total", FormatBytes(totalBytes) + " / " + FormatBytes(totalMaxBytes));
+            EditorGUILayout.EndScrollView();
         }
     }
 }
