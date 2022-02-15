@@ -216,6 +216,13 @@ public partial class CraMain
             Instance.PlayerData.Set(player.Index, in data);
         }
 
+        internal static void Player_SetPlaybackSpeed(NativeArray<CraPlayerData> playerData, CraHandle player, float speed)
+        {
+            CraPlayerData data = playerData[player.Index];
+            data.PlaybackSpeed = speed;
+            playerData[player.Index] = data;
+        }
+
         public void Player_ResetTransition(CraHandle player)
         {
             CraPlayerData data = Instance.PlayerData.Get(player.Index);
@@ -250,6 +257,7 @@ public partial class CraMain
 
         public void Player_Assign(CraHandle player, Transform root, CraMask? mask = null)
         {
+            Debug.Assert(player.IsValid());
             Debug.Assert(root != null);
 
             if (Instance.Settings.BoneHashFunction == null)
@@ -280,7 +288,11 @@ public partial class CraMain
             Player_CaptureBones(player);
         }
 
-
+        public int Player_GetAssignedBonesCount(CraHandle player)
+        {
+            Debug.Assert(player.IsValid());
+            return PlayerAssignedBones[player.Index].Count;
+        }
 
         void PlayerAssignInternal(List<int> assignedBones, CraSourceClip srcClip, CraHandle clip, Transform current, CraMask? mask = null, bool isMaskedChild = false)
         {

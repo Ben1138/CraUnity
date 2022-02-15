@@ -359,7 +359,7 @@ public struct CraSettings
 
     public const int MaxTransitions = 20;
     public const int MaxLayers = 5;
-    public const int MaxInputs = 10;
+    public const int MaxInputs = 20;
 
     public Func<string, int> BoneHashFunction;
 }
@@ -440,6 +440,12 @@ public struct CraPlayer
     {
         Debug.Assert(IsValid());
         CraMain.Instance.Players.Player_Assign(Handle, root, mask);
+    }
+
+    public int GetAssignedBonesCount()
+    {
+        Debug.Assert(IsValid());
+        return CraMain.Instance.Players.Player_GetAssignedBonesCount(Handle);
     }
 
     public void CaptureBones()
