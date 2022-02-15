@@ -215,6 +215,10 @@ public class CraStateMachineMonitor : EditorWindow
 
                     EditorGUILayout.Space();
                     EditorGUILayout.Slider(player.GetPlayback(), 0f, player.GetClip().GetDuration());
+                    if (GUILayout.Button("Capture Bones"))
+                    {
+                        player.CaptureBones();
+                    }
                 }
             }
         }

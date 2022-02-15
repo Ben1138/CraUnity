@@ -7,7 +7,7 @@ using Unity.Jobs;
 using UnityEditor;
 #endif
 
-// Main root instance of Cra. Singleton. 
+// Main root instance of Cra, Singleton. 
 // You can either place a CraMainComponent into your scene, or create an instance of this yourself.
 public unsafe partial class CraMain
 {
@@ -28,7 +28,6 @@ public unsafe partial class CraMain
     CraStateMachineJob MachineJob;
 
     CraBuffer<CraPlayerData> PlayerData;
-    int PlayerCounter;
 
     public CraMain(CraSettings settings)
     {

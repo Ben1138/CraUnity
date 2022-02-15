@@ -60,6 +60,7 @@ public partial class CraMain
             clipHandle = new CraHandle(ClipData.Alloc());
             if (!clipHandle.IsValid())
             {
+                Debug.LogError($"Allocation of new Clip failed!");
                 return CraHandle.Invalid;
             }
 
@@ -97,31 +98,23 @@ public partial class CraMain
 
         public CraHandle Player_New()
         {
-            if (Instance.PlayerCounter + 1 >= (Instance.PlayerData.GetCapacity() * 4))
+            int newIdx = Instance.PlayerData.Alloc();
+            if (newIdx < 0)
             {
-                Debug.LogError($"Limit of {Instance.PlayerData.GetCapacity() * 4} Players reached!");
+                Debug.LogError($"Allocation of new Player failed!");
                 return CraHandle.Invalid;
             }
 
-            int dataIdx = Instance.PlayerCounter / 4;
-            int subIdex = Instance.PlayerCounter % 4;
-
-            if (dataIdx >= Instance.PlayerData.GetNumAllocated())
-            {
-                int newIdx = Instance.PlayerData.Alloc();
-                Debug.Assert(newIdx == dataIdx);
-            }
-
-            CraPlayerData data = Instance.PlayerData.Get(dataIdx);
-            data.ClipIndex[subIdex] = -1;
-            data.PlaybackSpeed[subIdex] = 1f;
-            data.TransitionProgress[subIdex] = 1f;
-            Instance.PlayerData.Set(dataIdx, in data);
-
-            Debug.Assert(PlayerAssignedBones.Count == Instance.PlayerCounter);
+            CraPlayerData data = Instance.PlayerData.Get(newIdx);
+            data.ClipIndex = -1;
+            data.PlaybackSpeed = 1f;
+            data.TransitionProgress = 1f;
+            Instance.PlayerData.Set(newIdx, in data);
 
             PlayerAssignedBones.Add(new List<int>());
-            return new CraHandle(Instance.PlayerCounter++);
+            Debug.Assert(PlayerAssignedBones.Count == Instance.PlayerData.GetNumAllocated());
+
+            return new CraHandle(newIdx);
         }
 
         public void Player_SetClip(CraHandle player, CraHandle clip)
@@ -129,15 +122,15 @@ public partial class CraMain
             Debug.Assert(player.IsValid());
             Debug.Assert(clip.IsValid());
 
-            (CraPlayerData data, int subIdex) = PlayerGet(player);
-            data.ClipIndex[subIdex] = clip.Index;
-            PlayerSet(player, in data);
+            CraPlayerData data = Instance.PlayerData.Get(player.Index);
+            data.ClipIndex = clip.Index;
+            Instance.PlayerData.Set(player.Index, in data);
         }
 
         public CraHandle Player_GetClip(CraHandle player)
         {
-            (CraPlayerData data, int subIdex) = PlayerGet(player);
-            return new CraHandle(data.ClipIndex[subIdex]);
+            CraPlayerData data = Instance.PlayerData.Get(player.Index);
+            return new CraHandle(data.ClipIndex);
         }
 
         public void Player_CaptureBones(CraHandle player)
@@ -147,8 +140,8 @@ public partial class CraMain
             {
                 int boneIdx = boneIndices[i];
 
-                (CraPlayerData playerData, int subIdex) = PlayerGet(player);
-                CraHandle clip = new CraHandle(playerData.ClipIndex[subIdex]);
+                CraPlayerData playerData = Instance.PlayerData.Get(player.Index);
+                CraHandle clip = new CraHandle(playerData.ClipIndex);
 
                 // Let the bone point to our Player and Clip
                 CraBoneData boneData = BoneData.Get(boneIdx);
@@ -160,37 +153,37 @@ public partial class CraMain
 
         internal static void Player_Reset(NativeArray<CraPlayerData> playerData, CraHandle player)
         {
-            PlayerGet(playerData, player, out CraPlayerData data, out int subIdex);
-            data.Finished[subIdex] = false;
-            data.Playback[subIdex] = 0f;
-            data.IsPlaying[subIdex] = false;
-            PlayerSet(playerData, player, in data);
+            CraPlayerData data = playerData[player.Index];
+            data.Finished = false;
+            data.Playback = 0f;
+            data.IsPlaying = false;
+            playerData[player.Index] = data;
         }
 
         public void Player_Reset(CraHandle player)
         {
-            (CraPlayerData data, int subIdex) = PlayerGet(player);
-            data.Finished[subIdex] = false;
-            data.Playback[subIdex] = 0f;
-            data.IsPlaying[subIdex] = false;
-            PlayerSet(player, in data);
+            CraPlayerData data = Instance.PlayerData.Get(player.Index);
+            data.Finished = false;
+            data.Playback = 0f;
+            data.IsPlaying = false;
+            Instance.PlayerData.Set(player.Index, in data);
         }
 
         public bool Player_IsPlaying(CraHandle player)
         {
-            (CraPlayerData data, int subIdex) = PlayerGet(player);
-            return data.IsPlaying[subIdex];
+            CraPlayerData data = Instance.PlayerData.Get(player.Index);
+            return data.IsPlaying;
         }
 
         public float Player_GetPlayback(CraHandle player)
         {
-            (CraPlayerData data, int subIdex) = PlayerGet(player);
-            return data.Playback[subIdex];
+            CraPlayerData data = Instance.PlayerData.Get(player.Index);
+            return data.Playback;
         }
 
         internal static void Player_Play(NativeArray<CraPlayerData> playerData, CraHandle player, float transitionTime = 0.0f)
         {
-            PlayerGet(playerData, player, out CraPlayerData data, out int subIdex);
+            CraPlayerData data = playerData[player.Index];
             //if (data.PlaybackSpeed[subIdex] > 0f)
             //{
             //    data.Playback[subIdex] = .001f;
@@ -199,10 +192,10 @@ public partial class CraMain
             //{
             //    data.Playback[subIdex] = data.Duration[subIdex] - .001f;
             //}
-            data.IsPlaying[subIdex] = true;
-            data.TransitionTime[subIdex] = transitionTime;
-            data.TransitionProgress[subIdex] = transitionTime > 0.0f ? 0f : 1f;
-            PlayerSet(playerData, player, in data);
+            data.IsPlaying = true;
+            data.TransitionTime = transitionTime;
+            data.TransitionProgress = transitionTime > 0.0f ? 0f : 1f;
+            playerData[player.Index] = data;
         }
 
         public void Player_Play(CraHandle player, float transitionTime = 0.0f)
@@ -212,47 +205,47 @@ public partial class CraMain
 
         public float Player_GetPlaybackSpeed(CraHandle player)
         {
-            (CraPlayerData data, int subIdex) = PlayerGet(player);
-            return data.PlaybackSpeed[subIdex];
+            CraPlayerData data = Instance.PlayerData.Get(player.Index);
+            return data.PlaybackSpeed;
         }
 
         public void Player_SetPlaybackSpeed(CraHandle player, float speed)
         {
-            (CraPlayerData data, int subIdex) = PlayerGet(player);
-            data.PlaybackSpeed[subIdex] = speed;//Mathf.Max(speed, 0.01f);
-            PlayerSet(player, in data);
+            CraPlayerData data = Instance.PlayerData.Get(player.Index);
+            data.PlaybackSpeed = speed;//Mathf.Max(speed, 0.01f);
+            Instance.PlayerData.Set(player.Index, in data);
         }
 
         public void Player_ResetTransition(CraHandle player)
         {
-            (CraPlayerData data, int subIdex) = PlayerGet(player);
-            data.TransitionProgress[subIdex] = 0f;
-            PlayerSet(player, in data);
+            CraPlayerData data = Instance.PlayerData.Get(player.Index);
+            data.TransitionProgress = 0f;
+            Instance.PlayerData.Set(player.Index, in data);
         }
 
         public bool Player_IsLooping(CraHandle player)
         {
-            (CraPlayerData data, int subIdex) = PlayerGet(player);
-            return data.Looping[subIdex];
+            CraPlayerData data = Instance.PlayerData.Get(player.Index);
+            return data.Looping;
         }
 
         public void Player_SetLooping(CraHandle player, bool loop)
         {
-            (CraPlayerData data, int subIdex) = PlayerGet(player);
-            data.Looping[subIdex] = loop;
-            PlayerSet(player, in data);
+            CraPlayerData data = Instance.PlayerData.Get(player.Index);
+            data.Looping = loop;
+            Instance.PlayerData.Set(player.Index, in data);
         }
 
         internal static bool Player_IsFinished(NativeArray<CraPlayerData> playerData, CraHandle player)
         {
-            PlayerGet(playerData, player, out CraPlayerData data, out int subIdex);
-            return data.Finished[subIdex];
+            CraPlayerData data = playerData[player.Index];
+            return data.Finished;
         }
 
         public bool Player_IsFinished(CraHandle player)
         {
-            (CraPlayerData data, int subIdex) = PlayerGet(player);
-            return data.Finished[subIdex];
+            CraPlayerData data = Instance.PlayerData.Get(player.Index);
+            return data.Finished;
         }
 
         public void Player_Assign(CraHandle player, Transform root, CraMask? mask = null)
@@ -267,12 +260,11 @@ public partial class CraMain
             List<int> assignedBones = PlayerAssignedBones[player.Index];
             if (assignedBones.Count > 0)
             {
-                Debug.LogWarning($"Player {player.Index} already has bones assigned!");
-                return;
+                assignedBones.Clear();
             }
 
-            (CraPlayerData data, int subIdex) = PlayerGet(player);
-            CraHandle clip = new CraHandle(data.ClipIndex[subIdex]);
+            CraPlayerData data = Instance.PlayerData.Get(player.Index);
+            CraHandle clip = new CraHandle(data.ClipIndex);
             if (!clip.IsValid())
             {
                 Debug.LogError($"Cannot assign Transform '{root.name}' to CraPlayer! No CraClip set!");
@@ -282,15 +274,15 @@ public partial class CraMain
             CraSourceClip srcClip = KnownClips[clip];
             PlayerAssignInternal(assignedBones, srcClip, clip, root, mask);
 
-            data.TransitionProgress[subIdex] = 1f;
-            PlayerSet(player, in data);
+            data.TransitionProgress = 1f;
+            Instance.PlayerData.Set(player.Index, in data);
 
             Player_CaptureBones(player);
         }
 
 
 
-        void PlayerAssignInternal(List<int> assignedBones, CraSourceClip srcClip, CraHandle clip, Transform current, CraMask? mask = null, bool maskedChild = false)
+        void PlayerAssignInternal(List<int> assignedBones, CraSourceClip srcClip, CraHandle clip, Transform current, CraMask? mask = null, bool isMaskedChild = false)
         {
             void AddBone(int clipBoneIdx)
             {
@@ -298,6 +290,12 @@ public partial class CraMain
                 if (!KnownBoneIndices.TryGetValue(current, out allocIdx))
                 {
                     allocIdx = BoneData.Alloc();
+                    if (allocIdx < 0)
+                    {
+                        Debug.LogError("Allocating new BoneData entry failed!");
+                        return;
+                    }
+
                     KnownBoneIndices.Add(current, allocIdx);
                     BonePlayerClipIndices.Add(new Dictionary<CraHandle, int>());
                     Bones.Add(current);
@@ -318,16 +316,30 @@ public partial class CraMain
                 assignedBones.Add(allocIdx);
             }
 
-            int boneHash = CraMain.Instance.Settings.BoneHashFunction(current.name);
-            bool isMasked = false;
+            int boneHash = Instance.Settings.BoneHashFunction(current.name);
             if (srcClip.BoneHashToIdx.TryGetValue(boneHash, out int clipBoneIdx))
             {
                 if (mask.HasValue)
                 {
-                    if (maskedChild || mask.Value.BoneHashes.Contains(boneHash))
+                    bool foundBone = mask.Value.BoneHashes.Contains(boneHash);
+                    if (mask.Value.Operation == CraMaskOperation.Intersection)
                     {
-                        AddBone(clipBoneIdx);
-                        isMasked = mask.Value.MaskChildren;
+                        if (isMaskedChild || foundBone)
+                        {
+                            AddBone(clipBoneIdx);
+                            isMaskedChild = mask.Value.MaskChildren;
+                        }
+                    }
+                    else if (mask.Value.Operation == CraMaskOperation.Difference)
+                    {
+                        if (isMaskedChild || foundBone)
+                        {
+                            isMaskedChild = mask.Value.MaskChildren;
+                        }
+                        else
+                        {
+                            AddBone(clipBoneIdx);
+                        }
                     }
                 }
                 else
@@ -337,41 +349,13 @@ public partial class CraMain
             }
             for (int i = 0; i < current.childCount; ++i)
             {
-                PlayerAssignInternal(assignedBones, srcClip, clip, current.GetChild(i), mask, isMasked);
+                PlayerAssignInternal(assignedBones, srcClip, clip, current.GetChild(i), mask, isMaskedChild);
             }
-        }
-
-        static void PlayerGet(NativeArray<CraPlayerData> playerData, CraHandle player, out CraPlayerData outPlayer, out int outSubIndex)
-        {
-            int dataIdx = player.Index / 4;
-            outSubIndex = player.Index % 4;
-            outPlayer = playerData[dataIdx];
-        }
-
-        (CraPlayerData, int) PlayerGet(CraHandle player)
-        {
-            PlayerGet(Instance.PlayerData.GetMemoryBuffer(), player, out CraPlayerData outPlayer, out int outSubIndex);
-            return (outPlayer, outSubIndex);
-        }
-
-        static void PlayerSet(NativeArray<CraPlayerData> playerData, CraHandle player, in CraPlayerData data)
-        {
-            int dataIdx = player.Index / 4;
-            Debug.Assert(playerData.IsCreated);
-            Debug.Assert(dataIdx >= 0 && dataIdx < playerData.Length);
-            playerData[dataIdx] = data;
-        }
-
-        void PlayerSet(CraHandle player, in CraPlayerData data)
-        {
-            int dataIdx = player.Index / 4;
-            Instance.PlayerData.Set(dataIdx, in data);
         }
 
         public void Clear()
         {
             Instance.PlayerData.Clear();
-            Instance.PlayerCounter = 0;
 
             BoneData.Clear();
             Bones.SetTransforms(new Transform[] { });
@@ -418,7 +402,7 @@ public partial class CraMain
 
             return playerJob;
         }
-
+#if UNITY_EDITOR
         public unsafe void UpdateStatistics()
         {
             Instance.Statistics.PlayerData.MaxElements = Instance.PlayerData.GetCapacity();
@@ -445,7 +429,42 @@ public partial class CraMain
             Instance.Statistics.Bones.MaxBytes = (sizeof(bool) + sizeof(int) * 2) * (ulong)Bones.capacity;
             Instance.Statistics.Bones.CurrentElements = Bones.length;
             Instance.Statistics.Bones.CurrentBytes = (sizeof(bool) + sizeof(int) * 2) * (ulong)Bones.length;
+
+            // Mapping
+            int elems = 0;
+            ulong bytes = 0;
+
+            // Dictionaries approximately have an overhead of 20 bytes per entry
+
+            elems += KnownClipHandles.Count;
+            bytes += (ulong)KnownClipHandles.Count * (ulong)(sizeof(CraHandle) + sizeof(ulong) + 20);
+
+            elems += KnownClips.Count;
+            bytes += (ulong)KnownClips.Count * (ulong)(sizeof(CraHandle) + sizeof(ulong) + 20);
+
+            elems += KnownBoneIndices.Count;
+            bytes += (ulong)KnownBoneIndices.Count * (ulong)(sizeof(ulong) + sizeof(int) + 20);
+
+            bytes += (ulong)BonePlayerClipIndices.Count * (ulong)(sizeof(ulong));
+            for (int i = 0; i < BonePlayerClipIndices.Count; ++i)
+            {
+                elems += BonePlayerClipIndices[i].Count;
+                bytes += (ulong)BonePlayerClipIndices[i].Count * (ulong)(sizeof(CraHandle) + sizeof(int) + 20);
+            }
+
+            bytes += (ulong)PlayerAssignedBones.Count * (ulong)(sizeof(ulong));
+            for (int i = 0; i < PlayerAssignedBones.Count; ++i)
+            {
+                elems += PlayerAssignedBones[i].Count;
+                bytes += (ulong)PlayerAssignedBones[i].Count * (ulong)sizeof(int);
+            }
+
+            Instance.Statistics.Mapping.MaxElements = elems;
+            Instance.Statistics.Mapping.MaxBytes = bytes;
+            Instance.Statistics.Mapping.CurrentElements = elems;
+            Instance.Statistics.Mapping.CurrentBytes = bytes;
         }
+#endif
     }
 
     // Describes a clip (baked transfrom data) within the BakedClipTransforms NativeArray
@@ -487,67 +506,59 @@ public partial class CraMain
         public void Execute(int index)
         {
             CraPlayerData player = PlayerData[index];
-
-            //player.Playback += DeltaTime * player.PlaybackSpeed;
-            //bool4 end = player.Playback >= player.Duration;
-
-            player.TransitionProgress = math.clamp(player.TransitionProgress + DeltaTime / player.TransitionTime, float4.zero, new float4(1f, 1f, 1f, 1f));
-
-            // TODO: This is BAAAAAAAAAAD
-            for (int i = 0; i < 4; ++i)
+            if (!player.IsPlaying)
             {
-                if (!player.IsPlaying[i])
-                {
-                    continue;
-                }
+                return;
+            }
 
-                CraClipData clip = ClipData[player.ClipIndex[i]];
-                float duration = clip.FrameCount / clip.FPS;
-                player.Playback[i] += DeltaTime * player.PlaybackSpeed[i];
+            player.TransitionProgress = math.clamp(player.TransitionProgress + DeltaTime / player.TransitionTime, 0f, 1f);
 
-                if (player.PlaybackSpeed[i] > 0f)
+            CraClipData clip = ClipData[player.ClipIndex];
+            float duration = clip.FrameCount / clip.FPS;
+            player.Playback += DeltaTime * player.PlaybackSpeed;
+
+            if (player.PlaybackSpeed > 0f)
+            {
+                if (player.Playback >= duration)
                 {
-                    if (player.Playback[i] >= duration)
+                    if (!player.Looping)
                     {
-                        if (!player.Looping[i])
-                        {
-                            player.Playback[i] = duration - 0.001f;
-                            player.IsPlaying[i] = false;
-                            player.Finished[i] = true;
-                        }
-                        else
-                        {
-                            player.Playback[i] = 0;
-                            player.FrameIndex[i] = 0;
-                            player.Finished[i] = false;
-                        }
+                        player.Playback = duration - 0.001f;
+                        player.IsPlaying = false;
+                        player.Finished = true;
                     }
                     else
                     {
-                        player.FrameIndex[i] = (int)math.floor(clip.FPS * player.Playback[i]);
+                        player.Playback = 0;
+                        player.FrameIndex = 0;
+                        player.Finished = false;
                     }
                 }
                 else
                 {
-                    if (player.Playback[i] <= 0f)
+                    player.FrameIndex = (int)math.floor(clip.FPS * player.Playback);
+                }
+            }
+            else
+            {
+                if (player.Playback <= 0f)
+                {
+                    if (!player.Looping)
                     {
-                        if (!player.Looping[i])
-                        {
-                            player.Playback[i] = 0.001f;
-                            player.IsPlaying[i] = false;
-                            player.Finished[i] = true;
-                        }
-                        else
-                        {
-                            player.Playback[i] = duration;
-                            player.FrameIndex[i] = (int)math.floor(clip.FPS * duration);
-                            player.Finished[i] = false;
-                        }
+                        player.Playback = 0.001f;
+                        player.IsPlaying = false;
+                        player.Finished = true;
                     }
                     else
                     {
-                        player.FrameIndex[i] = (int)math.floor(clip.FPS * player.Playback[i]);
+                        player.Playback = duration;
+                        player.FrameIndex = (int)math.floor(clip.FPS * duration);
+                        player.Finished = false;
                     }
+                }
+                else
+                {
+                    player.FrameIndex = (int)math.floor(clip.FPS * player.Playback);
                 }
             }
 
@@ -577,21 +588,18 @@ public partial class CraMain
             int playerIdx = BoneData[index].PlayerIndex;
             int boneIndex = BoneData[index].ClipBoneIndex;
 
-            int playerMemIdx = playerIdx / 4;
-            int playerSubIdx = playerIdx % 4;
-
-            CraPlayerData player = PlayerData[playerMemIdx];
-            if (!player.IsPlaying[playerSubIdx])
+            CraPlayerData player = PlayerData[playerIdx];
+            if (!player.IsPlaying)
             {
                 return;
             }
 
-            int clipIdx = player.ClipIndex[playerSubIdx];
+            int clipIdx = player.ClipIndex;
             int clipFrameCount = ClipData[clipIdx].FrameCount;
             int clipFrameOffset = ClipData[clipIdx].FrameOffset;
-            int localFrameIndex = player.FrameIndex[playerSubIdx];
+            int localFrameIndex = player.FrameIndex;
 
-            float transition = player.TransitionProgress[playerSubIdx];
+            float transition = player.TransitionProgress;
             int frameIndex = clipFrameOffset + (boneIndex * clipFrameCount) + localFrameIndex;
 
             CraTransform frameTransform = BakedClipTransforms[frameIndex];
@@ -613,16 +621,16 @@ public partial class CraMain
     internal struct CraPlayerData
     {
         // setable
-        public int4 ClipIndex;
-        public bool4 Looping;
-        public bool4 IsPlaying;
-        public float4 PlaybackSpeed;
-        public float4 Playback;
-        public float4 TransitionTime;
-        public float4 TransitionProgress;
+        public int ClipIndex;
+        public bool Looping;
+        public bool IsPlaying;
+        public float PlaybackSpeed;
+        public float Playback;
+        public float TransitionTime;
+        public float TransitionProgress;
 
         // get only
-        public bool4 Finished;
-        public int4 FrameIndex;
+        public bool Finished;
+        public int FrameIndex;
     }
 }

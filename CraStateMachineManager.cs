@@ -11,6 +11,8 @@ public unsafe partial class CraMain
     {
 #if UNITY_EDITOR
         Dictionary<CraHandle, List<CraHandle>[]> StateMachineLayerStates;
+        Dictionary<CraHandle, CraHandle> StateToMachine;
+        Dictionary<CraHandle, CraHandle> StateToLayer;
         Dictionary<CraHandle, string> StateNames;
         Dictionary<CraHandle, string> InputNames;
 #endif
@@ -24,6 +26,8 @@ public unsafe partial class CraMain
         {
 #if UNITY_EDITOR
             StateMachineLayerStates = new Dictionary<CraHandle, List<CraHandle>[]>();
+            StateToMachine = new Dictionary<CraHandle, CraHandle>();
+            StateToLayer = new Dictionary<CraHandle, CraHandle>();
             StateNames = new Dictionary<CraHandle, string>();
             InputNames = new Dictionary<CraHandle, string>();
 #endif
@@ -36,6 +40,12 @@ public unsafe partial class CraMain
         public CraHandle StateMachine_New()
         {
             var h = new CraHandle(StateMachines.Alloc());
+            if (!h.IsValid())
+            {
+                Debug.LogError($"Allocation of new StateMachine failed!");
+                return CraHandle.Invalid;
+            }
+
             var machine = StateMachines.Get(h.Index);
             machine.Active = true;
             StateMachines.Set(h.Index, machine);
@@ -209,27 +219,36 @@ public unsafe partial class CraMain
             return StateMachineLayerStates[stateMachine][layer.Index].ToArray();
         }
 #endif
-        public void Layer_SetActiveState(CraHandle stateMachine, CraHandle layer, CraHandle activeState)
+        public void Layer_SetActiveState(CraHandle stateMachine, CraHandle layer, CraHandle newActiveState, float transitionTime)
         {
             Debug.Assert(stateMachine.IsValid());
             Debug.Assert(layer.IsValid());
-            Debug.Assert(activeState.IsValid());
+            Debug.Assert(newActiveState.IsValid());
 #if UNITY_EDITOR
-            if (!StateMachineLayerStates[stateMachine][layer.Index].Contains(activeState))
+            if (!StateMachineLayerStates[stateMachine][layer.Index].Contains(newActiveState))
             {
-                Debug.LogError($"Tried to set layer {layer.Index} of state machine {stateMachine.Index} to active state {activeState.Index}, which does not reside in said layer!");
+                Debug.LogError($"Tried to set layer {layer.Index} of state machine {stateMachine.Index} to active state {newActiveState.Index}, which does not reside in said layer!");
                 return;
             }
 #endif
             var machine = StateMachines.Get(stateMachine.Index);
-            machine.ActiveState[layer.Index] = activeState.Index;
+            CraHandle oldActiveState = new CraHandle(machine.ActiveState[layer.Index]);
+            if (oldActiveState.IsValid())
+            {
+                CraStateData data = States.Get(oldActiveState.Index);
+                if (data.Player.IsValid())
+                {
+                    Instance.Players.Player_Reset(data.Player);
+                }
+            }
             machine.Transitioning[layer.Index] = true;
+            machine.ActiveState[layer.Index] = newActiveState.Index;
             StateMachines.Set(stateMachine.Index, machine);
 
-            var state = States.Get(activeState.Index);
+            var state = States.Get(newActiveState.Index);
             if (state.Player.IsValid())
             {
-                Instance.Players.Player_Play(state.Player);
+                Instance.Players.Player_Play(state.Player, transitionTime);
             }
         }
 
@@ -246,6 +265,8 @@ public unsafe partial class CraMain
             States.Set(h.Index, state);
 #if UNITY_EDITOR
             StateMachineLayerStates[stateMachine][layerHandle.Index].Add(h);
+            StateToMachine.Add(h, stateMachine);
+            StateToLayer.Add(h, layerHandle);
 #endif
             return h;
         }
@@ -274,6 +295,24 @@ public unsafe partial class CraMain
         public CraHandle Transition_New(CraHandle stateHandle, in CraTransitionData transition)
         {
             Debug.Assert(transition.Target.IsValid());
+
+#if UNITY_EDITOR
+            {
+                CraHandle stateMachine = StateToMachine[stateHandle];
+                if (stateMachine != StateToMachine[transition.Target.Handle])
+                {
+                    Debug.LogError($"Tried to transition from state machine {stateMachine.Index} to other state machine {transition.Target.Handle.Index}!");
+                    return CraHandle.Invalid;
+                }
+
+                CraHandle layer = StateToLayer[stateHandle];
+                if (!StateMachineLayerStates[stateMachine][layer.Index].Contains(transition.Target.Handle))
+                {
+                    Debug.LogError($"Tried to transition from layer {layer.Index} to layer {StateToLayer[transition.Target.Handle].Index} of state machine {stateMachine.Index}!");
+                    return CraHandle.Invalid;
+                }
+            }
+#endif
 
             var state = States.Get(stateHandle.Index);
             if (state.TransitionsCount >= CraSettings.MaxTransitions)
