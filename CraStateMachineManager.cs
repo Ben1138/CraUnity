@@ -262,6 +262,7 @@ public unsafe partial class CraMain
             }
             var state = States.Get(h.Index);
             state.Player = player;
+            state.PlaybackSpeedInput = CraHandle.Invalid;
             States.Set(h.Index, state);
 #if UNITY_EDITOR
             StateMachineLayerStates[stateMachine][layerHandle.Index].Add(h);
@@ -269,6 +270,23 @@ public unsafe partial class CraMain
             StateToLayer.Add(h, layerHandle);
 #endif
             return h;
+        }
+
+        public void State_SetPlaybackSpeedInput(CraHandle stateHandle, CraHandle inputHandle)
+        {
+            if (!stateHandle.IsValid())
+            {
+                Debug.LogError("Given state handle is invalid!");
+                return;
+            }
+            if (!inputHandle.IsValid())
+            {
+                Debug.LogError("Given input handle is invalid!");
+                return;
+            }
+            var state = States.Get(stateHandle.Index);
+            state.PlaybackSpeedInput = inputHandle;
+            States.Set(stateHandle.Index, in state);
         }
 
         public CraHandle[] State_GetTransitions(CraHandle stateHandle)
@@ -474,6 +492,7 @@ public unsafe partial class CraMain
     struct CraStateData
     {
         public CraHandle Player;
+        public CraHandle PlaybackSpeedInput; // optional
         public int TransitionsCount;
         public fixed int Transitions[CraSettings.MaxTransitions];
     }
@@ -514,6 +533,16 @@ public unsafe partial class CraMain
                 }
 
                 var state = States[stateIdx];
+                if (!state.Player.IsValid())
+                {
+                    continue;
+                }
+
+                if (state.PlaybackSpeedInput.IsValid())
+                {
+                    var input = Inputs[state.PlaybackSpeedInput.Index];
+                    CraPlaybackManager.Player_SetPlaybackSpeed(Players, state.Player, input.ValueFloat);
+                }
 
                 for (int ti = 0; ti < state.TransitionsCount; ++ti)
                 {

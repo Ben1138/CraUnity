@@ -78,7 +78,13 @@ public class CraStateMachineMonitor : EditorWindow
             ViewLayerNames = new string[Layers.Length];
             for (int i = 0; i < ViewLayerNames.Length; ++i)
             {
+                Debug.Assert(Layers[i].IsValid());
                 ViewLayerNames[i] = "Layer " + i;
+            }
+
+            if (ViewLayer >= Layers.Length)
+            {
+                ViewLayer = 0;
             }
         }
 
@@ -103,7 +109,7 @@ public class CraStateMachineMonitor : EditorWindow
                         EditorGUILayout.LabelField($"{Inputs[i].GetName()}:", $"{value.ValueInt} (int)");
                         break;
                     case CraValueType.Float:
-                        EditorGUILayout.LabelField($"{Inputs[i].GetName()}:", $"{value.ValueFloat} (float)");
+                        EditorGUILayout.LabelField($"{Inputs[i].GetName()}:", $"{value.ValueFloat:n2} (float)");
                         break;
                     case CraValueType.Bool:
                         EditorGUILayout.LabelField($"{Inputs[i].GetName()}:", $"{value.ValueBool} (bool)");
@@ -149,6 +155,12 @@ public class CraStateMachineMonitor : EditorWindow
             StatesFoldout[si] = EditorGUILayout.Foldout(StatesFoldout[si], $"{state.GetName()} {(state == active ? "[ACTIVE]" : "")}", true);
             if (StatesFoldout[si])
             {
+                CraPlayer player = state.GetPlayer();
+                if (player.IsValid())
+                {
+                    EditorGUILayout.LabelField("Assigned Bones:", player.GetAssignedBonesCount().ToString());
+                }
+
                 CraTransition[] transitions = StateTransitions[si];
                 if (transitions.Length == 0)
                 {

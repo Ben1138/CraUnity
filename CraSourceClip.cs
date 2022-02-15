@@ -270,7 +270,12 @@ public class CraSourceClip
         BoneHashToIdx.Clear();
         for (int i = 0; i < Bones.Length; ++i)
         {
-            BoneHashToIdx[Bones[i].BoneHash] = i;
+            if (BoneHashToIdx.ContainsKey(Bones[i].BoneHash))
+            {
+                Debug.LogError($"Tried to add bone '{Bones[i].BoneHash}' more than once to CraSourceClip '{Name}'!");
+                continue;
+            }
+            BoneHashToIdx.Add(Bones[i].BoneHash, i);
         }
     }
 
