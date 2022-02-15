@@ -96,21 +96,29 @@ public struct CraBone
     }
 }
 
+public enum CraMaskOperation
+{
+    Intersection, // Assign bones defined in this mask, exclude all others
+    Difference    // Assign ALL bones EXCEPT the ones defined in this mask
+}
+
 /// <summary>
 /// Masks are inclusive, i.e. only assign bones to a clip specified in here
 /// </summary>
 public struct CraMask
 {
+    public CraMaskOperation Operation;
     public bool MaskChildren;
     public HashSet<int> BoneHashes;
 
-    public CraMask(bool maskChildren, params string[] boneNames)
+    public CraMask(CraMaskOperation operation, bool maskChildren, params string[] boneNames)
     {
         if (CraMain.Instance.Settings.BoneHashFunction == null)
         {
             throw new Exception("CraMain.Instance.Settings.BoneHashFunction is not assigned! You need to assign a custom hash function!");
         }
 
+        Operation = operation;
         BoneHashes = new HashSet<int>();
         for (int i = 0; i < boneNames.Length; ++i)
         {
@@ -171,14 +179,15 @@ public struct CraConditionOr
     public CraCondition And3;
 }
 
+[StructLayout(LayoutKind.Sequential)]
 public struct CraTransitionData
 {
     public CraState Target;
+    public float TransitionTime;
     public CraConditionOr Or0;
     public CraConditionOr Or1;
     public CraConditionOr Or2;
     public CraConditionOr Or3;
-    public float TransitionTime;
 }
 
 public class CraBuffer<T> where T : struct
@@ -300,6 +309,8 @@ public class CraBuffer<T> where T : struct
         {
             Debug.Assert(Elements.IsCreated);
             int newLength = (int)(Elements.Length * GrowFactor);
+            Debug.Log($"Growing CraBuffer from {Elements.Length} to {newLength}");
+
             Debug.Assert(newLength > Elements.Length);
             NativeArray<T> newElements = new NativeArray<T>(newLength, Allocator.Persistent);
             NativeArray<T> view = newElements.GetSubArray(0, Elements.Length);
@@ -318,6 +329,7 @@ public class CraStatistics
     public CraMeasure BakedClipTransforms;
     public CraMeasure BoneData;
     public CraMeasure Bones;
+    public CraMeasure Mapping;
 
     public CraMeasure StateMachines;
     public CraMeasure Inputs;
@@ -338,13 +350,12 @@ public struct CraSettings
     public CraBufferSettings Clips;
     public CraBufferSettings ClipTransforms;
     public CraBufferSettings Bones;
+    public int MaxBones;
 
     public CraBufferSettings StateMachines;
     public CraBufferSettings Inputs;
     public CraBufferSettings States;
     public CraBufferSettings Transitions;
-
-    public int MaxBones;
 
     public const int MaxTransitions = 20;
     public const int MaxLayers = 5;
@@ -504,12 +515,9 @@ public struct CraState
 
     public static CraState None => new CraState { Handle = CraHandle.Invalid };
 
-    public static CraState CreateNew(CraPlayer player, CraStateMachine machine, CraLayer layer, string name=null)
+    public static CraState CreateNew(CraPlayer player, CraStateMachine machine, CraLayer layer)
     {
         CraHandle h = CraMain.Instance.StateMachines.State_New(player.Handle, machine.Handle, layer.Handle);
-#if UNITY_EDITOR
-        CraMain.Instance.StateMachines.SetStateName(h, name);
-#endif
         return new CraState
         {
             Handle = h
@@ -558,6 +566,10 @@ public struct CraState
     }
 
 #if UNITY_EDITOR
+    public void SetName(string name)
+    {
+        CraMain.Instance.StateMachines.SetStateName(Handle, name);
+    }
     public string GetName()
     {
         string name = CraMain.Instance.StateMachines.GetStateName(Handle);
@@ -677,9 +689,9 @@ public struct CraLayer
         return Handle.IsValid();
     }
 
-    public CraState NewState(CraPlayer player, string name=null)
+    public CraState NewState(CraPlayer player)
     {
-        return CraState.CreateNew(player, Owner, this, name);
+        return CraState.CreateNew(player, Owner, this);
     }
 
     public CraState GetActiveState()
@@ -687,10 +699,10 @@ public struct CraLayer
         return new CraState(CraMain.Instance.StateMachines.Layer_GetActiveState(Owner.Handle, Handle));
     }
 
-    public void SetActiveState(CraState state)
+    public void SetActiveState(CraState state, float transitionTime= 0f)
     {
         Debug.Assert(Owner.IsValid());
-        CraMain.Instance.StateMachines.Layer_SetActiveState(Owner.Handle, Handle, state.Handle);
+        CraMain.Instance.StateMachines.Layer_SetActiveState(Owner.Handle, Handle, state.Handle, transitionTime);
     }
 #if UNITY_EDITOR
     public CraState[] GetAllStates()
@@ -704,32 +716,6 @@ public struct CraLayer
         return states;
     }
 #endif
-    //public CraState[] GetAllStates()
-    //{
-    //    HashSet<CraState> states = new HashSet<CraState>();
-    //    void Recurse(CraState state)
-    //    {
-    //        if (states.Contains(state))
-    //        {
-    //            return;
-    //        }
-
-    //        states.Add(state);
-    //        CraTransition[] transitions = state.GetTransitions();
-    //        for (int i = 0; i < transitions.Length; ++i)
-    //        {
-    //            Debug.Assert(transitions[i].IsValid());
-    //            CraTransitionData data = transitions[i].GetData();
-    //            Recurse(data.Target);
-    //        }
-    //    }
-    //    CraState startState = new CraState(CraMain.Instance.StateMachines.Layer_GetActiveState(Owner.Handle, Handle));
-    //    Debug.Assert(startState.IsValid());
-    //    Recurse(startState);
-    //    CraState[] res = new CraState[states.Count];
-    //    states.CopyTo(res);
-    //    return res;
-    //}
 }
 
 public struct CraStateMachine

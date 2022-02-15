@@ -53,6 +53,7 @@ public class CraRuntimeMonitor : EditorWindow
             DisplayMeasure("Baked", in stats.BakedClipTransforms);
             DisplayMeasure("Bone", in stats.BoneData);
             DisplayMeasure("Transforms", in stats.Bones);
+            DisplayMeasure("Mapping", in stats.Mapping);
             EditorGUILayout.Space();
             DisplayMeasure("StateMachines", in stats.StateMachines);
             DisplayMeasure("Inputs", in stats.Inputs);
@@ -69,7 +70,8 @@ public class CraRuntimeMonitor : EditorWindow
                 stats.StateMachines.CurrentBytes +
                 stats.Inputs.CurrentBytes +
                 stats.States.CurrentBytes +
-                stats.Transitions.CurrentBytes;
+                stats.Transitions.CurrentBytes +
+                stats.Mapping.CurrentBytes;
             ulong totalMaxBytes =
                 stats.PlayerData.MaxBytes +
                 stats.ClipData.MaxBytes +
@@ -79,7 +81,8 @@ public class CraRuntimeMonitor : EditorWindow
                 stats.StateMachines.MaxBytes +
                 stats.Inputs.MaxBytes +
                 stats.States.MaxBytes +
-                stats.Transitions.MaxBytes;
+                stats.Transitions.MaxBytes +
+                stats.Mapping.MaxBytes;
             EditorGUILayout.LabelField("Total", FormatBytes(totalBytes) + " / " + FormatBytes(totalMaxBytes));
             EditorGUILayout.EndScrollView();
         }
