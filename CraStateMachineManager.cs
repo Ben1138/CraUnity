@@ -464,6 +464,12 @@ public unsafe partial class CraMain
 
         public void Clear()
         {
+            StateMachineLayerStates.Clear();
+            StateToMachine.Clear();
+            StateToLayer.Clear();
+            StateNames.Clear();
+            InputNames.Clear();
+
             StateMachines.Clear();
             Inputs.Clear();
             States.Clear();
@@ -472,6 +478,12 @@ public unsafe partial class CraMain
 
         public void Destroy()
         {
+            StateMachineLayerStates.Clear();
+            StateToMachine.Clear();
+            StateToLayer.Clear();
+            StateNames.Clear();
+            InputNames.Clear();
+
             StateMachines.Destroy();
             Inputs.Destroy();
             States.Destroy();

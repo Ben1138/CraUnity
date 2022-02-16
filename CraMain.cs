@@ -79,5 +79,7 @@ public unsafe partial class CraMain
 
         StateMachines.Destroy();
         StateMachines = null;
+
+        Instance = null;
     }
 }
