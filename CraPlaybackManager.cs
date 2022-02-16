@@ -367,27 +367,28 @@ public partial class CraMain
 
         public void Clear()
         {
-            Instance.PlayerData.Clear();
-
-            BoneData.Clear();
-            Bones.SetTransforms(new Transform[] { });
-
-            ClipData.Clear();
-            BakedClipTransforms.Clear();
-
             KnownClipHandles.Clear();
             KnownClips.Clear();
-
             KnownBoneIndices.Clear();
-
             BonePlayerClipIndices.Clear();
             PlayerAssignedBones.Clear();
+
+            Instance.PlayerData.Clear();
+            BoneData.Clear();
+            Bones.SetTransforms(new Transform[] { });
+            ClipData.Clear();
+            BakedClipTransforms.Clear();
         }
 
 
         public void Destroy()
         {
-            Debug.Log("Deleting all animator manager data");
+            KnownClipHandles.Clear();
+            KnownClips.Clear();
+            KnownBoneIndices.Clear();
+            BonePlayerClipIndices.Clear();
+            PlayerAssignedBones.Clear();
+
             Instance.PlayerData.Destroy();
             ClipData.Destroy();
             BoneData.Destroy();
