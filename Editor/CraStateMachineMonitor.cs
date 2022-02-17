@@ -18,6 +18,7 @@ public class CraStateMachineMonitor : EditorWindow
     int ViewLayer = 0;
     string[] ViewLayerNames;
     CraInput[] Inputs;
+    CraOutput[] Outputs;
     CraLayer[] Layers;
     CraState[] States;
     CraTransition[][] StateTransitions;
@@ -74,6 +75,7 @@ public class CraStateMachineMonitor : EditorWindow
             }
 
             Inputs = Monitored.Value.GetInputs();
+            Outputs = Monitored.Value.GetOutputs();
             Layers = Monitored.Value.GetLayers();
             ViewLayerNames = new string[Layers.Length];
             for (int i = 0; i < ViewLayerNames.Length; ++i)
@@ -94,6 +96,7 @@ public class CraStateMachineMonitor : EditorWindow
             return;
         }
 
+        GUILayout.Label("Inputs:");
         if (Inputs.Length == 0)
         {
             EditorGUILayout.LabelField("State machine has no inputs!");
@@ -120,6 +123,35 @@ public class CraStateMachineMonitor : EditorWindow
                 }
             }
         }
+        EditorGUILayout.Space();
+        GUILayout.Label("Outputs:");
+        if (Outputs.Length == 0)
+        {
+            EditorGUILayout.LabelField("State machine has no outputs!");
+        }
+        else
+        {
+            for (int i = 0; i < Outputs.Length; ++i)
+            {
+                CraValueUnion value = Outputs[i].GetValue();
+                switch (value.Type)
+                {
+                    case CraValueType.Int:
+                        EditorGUILayout.LabelField($"{Outputs[i].GetName()}:", $"{value.ValueInt} (int)");
+                        break;
+                    case CraValueType.Float:
+                        EditorGUILayout.LabelField($"{Outputs[i].GetName()}:", $"{value.ValueFloat:n2} (float)");
+                        break;
+                    case CraValueType.Bool:
+                        EditorGUILayout.LabelField($"{Outputs[i].GetName()}:", $"{value.ValueBool} (bool)");
+                        break;
+                    default:
+                        EditorGUILayout.LabelField($"{Outputs[i].GetName()}:", "UNHANDLED TYPE");
+                        break;
+                }
+            }
+        }
+        EditorGUILayout.Space();
 
         int tmp = ViewLayer;
         ViewLayer = EditorGUILayout.Popup(ViewLayer, ViewLayerNames);
