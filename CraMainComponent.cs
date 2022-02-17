@@ -17,13 +17,13 @@ public class CraMainComponent : MonoBehaviour
             Clips          = new CraBufferSettings { Capacity = 1024, GrowFactor = 1.5f },
             ClipTransforms = new CraBufferSettings { Capacity = 1024, GrowFactor = 1.5f },
             Bones          = new CraBufferSettings { Capacity = 1024, GrowFactor = 1.5f },
+            MaxBones = 65535,
 
             StateMachines = new CraBufferSettings { Capacity = 1024, GrowFactor = 1.5f },
             Inputs        = new CraBufferSettings { Capacity = 1024, GrowFactor = 1.5f },
+            Outputs       = new CraBufferSettings { Capacity = 1024, GrowFactor = 1.5f },
             States        = new CraBufferSettings { Capacity = 1024, GrowFactor = 1.5f },
             Transitions   = new CraBufferSettings { Capacity = 1024, GrowFactor = 1.5f },
-
-            MaxBones = 65535,
 
             BoneHashFunction = (string input) => { return input.GetHashCode(); }
         });
