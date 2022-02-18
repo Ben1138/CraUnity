@@ -109,13 +109,16 @@ public class CraStateMachineMonitor : EditorWindow
                 switch (value.Type)
                 {
                     case CraValueType.Int:
-                        EditorGUILayout.LabelField($"{Inputs[i].GetName()}:", $"{value.ValueInt} (int)");
+                        EditorGUILayout.LabelField($"{Inputs[i].GetName()}:", $"{value.ValueInt}  (int)");
                         break;
                     case CraValueType.Float:
-                        EditorGUILayout.LabelField($"{Inputs[i].GetName()}:", $"{value.ValueFloat:n2} (float)");
+                        EditorGUILayout.LabelField($"{Inputs[i].GetName()}:", $"{value.ValueFloat:n2}  (float)");
                         break;
                     case CraValueType.Bool:
-                        EditorGUILayout.LabelField($"{Inputs[i].GetName()}:", $"{value.ValueBool} (bool)");
+                        EditorGUILayout.LabelField($"{Inputs[i].GetName()}:", $"{value.ValueBool}  (bool)");
+                        break;
+                    case CraValueType.Trigger:
+                        EditorGUILayout.LabelField($"{Inputs[i].GetName()}:", $"{value.ValueBool}  (trigger)");
                         break;
                     default:
                         EditorGUILayout.LabelField($"{Inputs[i].GetName()}:", "UNHANDLED TYPE");
@@ -137,13 +140,13 @@ public class CraStateMachineMonitor : EditorWindow
                 switch (value.Type)
                 {
                     case CraValueType.Int:
-                        EditorGUILayout.LabelField($"{Outputs[i].GetName()}:", $"{value.ValueInt} (int)");
+                        EditorGUILayout.LabelField($"{Outputs[i].GetName()}:", $"{value.ValueInt}  (int)");
                         break;
                     case CraValueType.Float:
-                        EditorGUILayout.LabelField($"{Outputs[i].GetName()}:", $"{value.ValueFloat:n2} (float)");
+                        EditorGUILayout.LabelField($"{Outputs[i].GetName()}:", $"{value.ValueFloat:n2}  (float)");
                         break;
                     case CraValueType.Bool:
-                        EditorGUILayout.LabelField($"{Outputs[i].GetName()}:", $"{value.ValueBool} (bool)");
+                        EditorGUILayout.LabelField($"{Outputs[i].GetName()}:", $"{value.ValueBool}  (bool)");
                         break;
                     default:
                         EditorGUILayout.LabelField($"{Outputs[i].GetName()}:", "UNHANDLED TYPE");

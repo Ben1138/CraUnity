@@ -329,6 +329,15 @@ public unsafe partial class CraMain
             {
                 Instance.Players.Player_Play(state.Player, transitionTime);
             }
+
+            CraWrite* write = &state.WriteOutput0;
+            for (int wi = 0; wi < state.WriteCount; ++wi)
+            {
+                if (write[wi].Output.IsValid())
+                {
+                    Outputs.Set(write[wi].Output.Index, write[wi].Value);
+                }
+            }
         }
 
         public CraHandle State_New(CraHandle player, CraHandle stateMachine, CraHandle layerHandle)
@@ -594,7 +603,6 @@ public unsafe partial class CraMain
             }
 
             // Reset all Input Triggers
-            // TODO: This doesn't seems to work.
             for (int i = 0; i < Inputs.GetNumAllocated(); ++i)
             {
                 var data = Inputs.Get(i);
@@ -830,7 +838,7 @@ public unsafe partial class CraMain
             }
             else if (con.Type == CraConditionType.Trigger && con.Input.IsValid())
             {
-                conditionMet = input.Type == CraValueType.Bool && input.ValueBool;
+                conditionMet = input.Type == CraValueType.Trigger && input.ValueBool;
             }
             else if (con.Type == CraConditionType.IsFinished && state.Player.IsValid() && CraPlaybackManager.Player_IsFinished(Players, state.Player))
             {
