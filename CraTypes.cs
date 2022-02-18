@@ -132,7 +132,8 @@ public enum CraValueType : int
 {
     Int,
     Float,
-    Bool
+    Bool,
+    Trigger
 }
 
 public enum CraConditionType
@@ -646,6 +647,11 @@ public struct CraInput
     public void SetBool(bool value)
     {
         CraMain.Instance.StateMachines.Input_SetValueBool(Handle, value);
+    }
+
+    public void SetTrigger(bool value)
+    {
+        CraMain.Instance.StateMachines.Input_SetValueTrigger(Handle, value);
     }
 
 #if UNITY_EDITOR

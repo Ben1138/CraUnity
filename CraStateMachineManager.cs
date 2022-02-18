@@ -189,16 +189,20 @@ public unsafe partial class CraMain
 
         public void Input_SetValueBool(CraHandle inputHandle, bool value)
         {
-            // Since CraStateMachineJob can write to Inputs to reset
-            // a trigger bool to false, we should lock here.
-            lock (Instance.Lock)
-            {
-                Debug.Assert(inputHandle.IsValid());
-                var input = Inputs.Get(inputHandle.Index);
-                Debug.Assert(input.Type == CraValueType.Bool);
-                input.ValueBool = value;
-                Inputs.Set(inputHandle.Index, input);
-            }
+            Debug.Assert(inputHandle.IsValid());
+            var input = Inputs.Get(inputHandle.Index);
+            Debug.Assert(input.Type == CraValueType.Bool);
+            input.ValueBool = value;
+            Inputs.Set(inputHandle.Index, input);
+        }
+
+        public void Input_SetValueTrigger(CraHandle inputHandle, bool value)
+        {
+            Debug.Assert(inputHandle.IsValid());
+            var input = Inputs.Get(inputHandle.Index);
+            Debug.Assert(input.Type == CraValueType.Trigger);
+            input.ValueBool = value;
+            Inputs.Set(inputHandle.Index, input);
         }
 
         public CraHandle Output_New(CraHandle stateMachine, CraValueType type)
@@ -563,8 +567,6 @@ public unsafe partial class CraMain
             JobHandle scheduled = Instance.MachineJob.Schedule(StateMachines.GetNumAllocated(), 4, playerJob);
             scheduled.Complete();
 
-
-
             // Hack: Capture Bones for transitioning states
             for (int mi = 0; mi < StateMachines.GetNumAllocated(); ++mi)
             {
@@ -589,6 +591,18 @@ public unsafe partial class CraMain
                 {
                     StateMachines.Set(mi, data);
                 }
+            }
+
+            // Reset all Input Triggers
+            // TODO: This doesn't seems to work.
+            for (int i = 0; i < Inputs.GetNumAllocated(); ++i)
+            {
+                var data = Inputs.Get(i);
+                if (data.Type == CraValueType.Trigger)
+                {
+                    data.ValueBool = false;
+                }
+                Inputs.Set(i, data);
             }
         }
 
@@ -672,10 +686,6 @@ public unsafe partial class CraMain
 
         // Read + Write
         [NativeDisableParallelForRestriction]
-        public NativeArray<CraValueUnion> Inputs;
-
-        // Read + Write
-        //[NativeDisableParallelForRestriction]
         public NativeArray<CraValueUnion> Outputs;
 
         [ReadOnly]
@@ -683,6 +693,9 @@ public unsafe partial class CraMain
 
         [ReadOnly]
         public NativeArray<CraTransitionData> Transitions;
+
+        [ReadOnly]
+        public NativeArray<CraValueUnion> Inputs;
 
 
         public void Execute(int index)
@@ -818,8 +831,6 @@ public unsafe partial class CraMain
             else if (con.Type == CraConditionType.Trigger && con.Input.IsValid())
             {
                 conditionMet = input.Type == CraValueType.Bool && input.ValueBool;
-                input.ValueBool = false;
-                Inputs[con.Input.Handle.Index] = input;
             }
             else if (con.Type == CraConditionType.IsFinished && state.Player.IsValid() && CraPlaybackManager.Player_IsFinished(Players, state.Player))
             {
