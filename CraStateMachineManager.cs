@@ -433,6 +433,16 @@ public unsafe partial class CraMain
             return state.Player;
         }
 
+        public void State_SetSyncState(CraHandle stateHandle, CraHandle syncStateHandle)
+        {
+            Debug.Assert(stateHandle.IsValid());
+            Debug.Assert(syncStateHandle.IsValid());
+
+            var state = States.Get(stateHandle.Index);
+            state.SyncToState = syncStateHandle;
+            States.Set(stateHandle.Index, state);
+        }
+
         public CraHandle Transition_New(CraHandle stateHandle, in CraTransitionData transition)
         {
             Debug.Assert(transition.Target.IsValid());
@@ -672,6 +682,7 @@ public unsafe partial class CraMain
     {
         public CraHandle Player;
         public CraHandle PlaybackSpeedInput; // optional
+        public CraHandle SyncToState; // when entering this state, sync playback time to that state
         public int TransitionsCount;
         public fixed int Transitions[CraSettings.MaxTransitions];
 
@@ -694,6 +705,10 @@ public unsafe partial class CraMain
 
         // Read + Write
         [NativeDisableParallelForRestriction]
+        public NativeArray<CraValueUnion> Inputs;
+
+        // Read + Write
+        [NativeDisableParallelForRestriction]
         public NativeArray<CraValueUnion> Outputs;
 
         [ReadOnly]
@@ -702,14 +717,13 @@ public unsafe partial class CraMain
         [ReadOnly]
         public NativeArray<CraTransitionData> Transitions;
 
-        [ReadOnly]
-        public NativeArray<CraValueUnion> Inputs;
-
 
         public void Execute(int index)
         {
             var machine = StateMachines[index];
             if (!machine.Active) return;
+
+            //Debug.Log($"Executing state machine {index}!");
 
             // Maybe also parallelize layers
             for (int li = 0; li < machine.LayerCount; ++li)
@@ -740,19 +754,29 @@ public unsafe partial class CraMain
                         CheckCondition(tran.Or0, state) ||
                         CheckCondition(tran.Or1, state) ||
                         CheckCondition(tran.Or2, state) ||
-                        CheckCondition(tran.Or3, state);
+                        CheckCondition(tran.Or3, state) ||
+                        CheckCondition(tran.Or4, state) ||
+                        CheckCondition(tran.Or5, state) ||
+                        CheckCondition(tran.Or6, state) ||
+                        CheckCondition(tran.Or7, state) ||
+                        CheckCondition(tran.Or8, state) ||
+                        CheckCondition(tran.Or9, state);
 
                     if (transit)
                     {
-                        if (state.Player.IsValid())
-                        {
-                            CraPlaybackManager.Player_Reset(Players, state.Player);
-                        }
                         machine.ActiveState[li] = tran.Target.Handle.Index;
                         machine.Transitioning[li] = true;
                         CraStateData newState = States[machine.ActiveState[li]];
                         if (newState.Player.IsValid())
                         {
+                            CraPlaybackManager.Player_Reset(Players, newState.Player);
+                            if (newState.SyncToState.IsValid())
+                            {
+                                var syncState = States[newState.SyncToState.Index];
+                                CraPlayerData pd = Players[newState.Player.Index];
+                                pd.Playback = Players[syncState.Player.Index].Playback;
+                                Players[newState.Player.Index] = pd;
+                            }
                             CraPlaybackManager.Player_Play(Players, newState.Player, tran.TransitionTime);
                         }
 
@@ -780,7 +804,13 @@ public unsafe partial class CraMain
                 or.And0.Type != CraConditionType.None ||
                 or.And1.Type != CraConditionType.None ||
                 or.And2.Type != CraConditionType.None ||
-                or.And3.Type != CraConditionType.None;
+                or.And3.Type != CraConditionType.None ||
+                or.And4.Type != CraConditionType.None ||
+                or.And5.Type != CraConditionType.None ||
+                or.And6.Type != CraConditionType.None ||
+                or.And7.Type != CraConditionType.None ||
+                or.And8.Type != CraConditionType.None ||
+                or.And9.Type != CraConditionType.None;
         }
 
         bool CheckCondition(in CraConditionOr or, in CraStateData state)
@@ -790,7 +820,13 @@ public unsafe partial class CraMain
                 CheckCondition(or.And0, state) &&
                 CheckCondition(or.And1, state) &&
                 CheckCondition(or.And2, state) &&
-                CheckCondition(or.And3, state);
+                CheckCondition(or.And3, state) &&
+                CheckCondition(or.And4, state) &&
+                CheckCondition(or.And5, state) &&
+                CheckCondition(or.And6, state) &&
+                CheckCondition(or.And7, state) &&
+                CheckCondition(or.And8, state) &&
+                CheckCondition(or.And9, state);
         }
 
         bool CheckCondition(in CraCondition con, in CraStateData state)
@@ -839,6 +875,12 @@ public unsafe partial class CraMain
             else if (con.Type == CraConditionType.Trigger && con.Input.IsValid())
             {
                 conditionMet = input.Type == CraValueType.Trigger && input.ValueBool;
+                //if (conditionMet)
+                //{
+                //    Debug.Log($"Triggered by: {con.Input.GetName()}");
+                //    input.ValueBool = false;
+                //    Inputs[con.Input.Handle.Index] = input;
+                //}
             }
             else if (con.Type == CraConditionType.IsFinished && state.Player.IsValid() && CraPlaybackManager.Player_IsFinished(Players, state.Player))
             {

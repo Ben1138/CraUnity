@@ -193,6 +193,8 @@ public class CraStateMachineMonitor : EditorWindow
                 CraPlayer player = state.GetPlayer();
                 if (player.IsValid())
                 {
+                    var range = player.GetPlayRange();
+                    EditorGUILayout.LabelField("Play Range Time:", $"{range.MinTime} - {range.MaxTime}");
                     EditorGUILayout.LabelField("Assigned Bones:", player.GetAssignedBonesCount().ToString());
                 }
 
@@ -261,7 +263,7 @@ public class CraStateMachineMonitor : EditorWindow
                     }
 
                     EditorGUILayout.Space();
-                    EditorGUILayout.Slider(player.GetPlayback(), 0f, player.GetClip().GetDuration());
+                    EditorGUILayout.Slider(player.GetTime(), 0f, player.GetClip().GetDuration());
                     if (GUILayout.Button("Capture Bones"))
                     {
                         player.CaptureBones();
