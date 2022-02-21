@@ -128,7 +128,7 @@ public struct CraMask
     }
 }
 
-public enum CraValueType : int
+public enum CraValueType : byte
 {
     Int,
     Float,
@@ -155,6 +155,8 @@ public struct CraValueUnion
 {
     [FieldOffset(0)]
     public CraValueType Type;
+    //[FieldOffset(1)]
+    //public byte TriggerConsumableCount;
 
     [FieldOffset(4)]
     public int ValueInt;
@@ -162,6 +164,7 @@ public struct CraValueUnion
     public float ValueFloat;
     [FieldOffset(4)]
     public bool ValueBool;
+
 }
 
 public struct CraWriteOutput
@@ -178,12 +181,19 @@ public struct CraCondition
     public bool CompareToAbsolute;
 }
 
+[StructLayout(LayoutKind.Sequential)]
 public struct CraConditionOr
 {
     public CraCondition And0;
     public CraCondition And1;
     public CraCondition And2;
     public CraCondition And3;
+    public CraCondition And4;
+    public CraCondition And5;
+    public CraCondition And6;
+    public CraCondition And7;
+    public CraCondition And8;
+    public CraCondition And9;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -195,6 +205,12 @@ public struct CraTransitionData
     public CraConditionOr Or1;
     public CraConditionOr Or2;
     public CraConditionOr Or3;
+    public CraConditionOr Or4;
+    public CraConditionOr Or5;
+    public CraConditionOr Or6;
+    public CraConditionOr Or7;
+    public CraConditionOr Or8;
+    public CraConditionOr Or9;
 }
 
 public class CraBuffer<T> where T : struct
@@ -351,6 +367,12 @@ public struct CraBufferSettings
     public float GrowFactor;
 }
 
+public struct CraPlayRange
+{
+    public float MinTime;
+    public float MaxTime;
+}
+
 public struct CraSettings
 {
     public CraBufferSettings Players;
@@ -399,6 +421,16 @@ public struct CraClip
     public float GetDuration()
     {
         return CraMain.Instance.Players.Clip_GetDuration(Handle);
+    }
+
+    public static bool operator ==(CraClip lhs, CraClip rhs)
+    {
+        return lhs.Handle == rhs.Handle;
+    }
+
+    public static bool operator !=(CraClip lhs, CraClip rhs)
+    {
+        return lhs.Handle != rhs.Handle;
     }
 }
 
@@ -481,10 +513,16 @@ public struct CraPlayer
         CraMain.Instance.Players.Player_Play(Handle, transitionTime);
     }
 
-    public float GetPlayback()
+    public void SetPlayRange(in CraPlayRange range)
     {
         Debug.Assert(IsValid());
-        return CraMain.Instance.Players.Player_GetPlayback(Handle);
+        CraMain.Instance.Players.Player_SetPlayRange(Handle, range);
+    }
+
+    public CraPlayRange GetPlayRange()
+    {
+        Debug.Assert(IsValid());
+        return CraMain.Instance.Players.Player_GetPlayRange(Handle);
     }
 
     public float GetPlaybackSpeed()
@@ -497,6 +535,18 @@ public struct CraPlayer
     {
         Debug.Assert(IsValid());
         CraMain.Instance.Players.Player_SetPlaybackSpeed(Handle, speed);
+    }
+
+    public float GetTime()
+    {
+        Debug.Assert(IsValid());
+        return CraMain.Instance.Players.Player_GetTime(Handle);
+    }
+
+    public void SetTime(float time)
+    {
+        Debug.Assert(IsValid());
+        CraMain.Instance.Players.Player_SetTime(Handle, time);
     }
 
     public void ResetTransition()
@@ -563,6 +613,11 @@ public struct CraState
             transitions[i] = new CraTransition(handles[i]);
         }
         return transitions;
+    }
+
+    public void SetSyncState(CraState syncState)
+    {
+        CraMain.Instance.StateMachines.State_SetSyncState(Handle, syncState.Handle);
     }
 
     public void WriteOutput(CraWriteOutput write)

@@ -121,10 +121,12 @@ public partial class CraMain
         {
             Debug.Assert(player.IsValid());
             Debug.Assert(clip.IsValid());
-
             CraPlayerData data = Instance.PlayerData.Get(player.Index);
             data.ClipIndex = clip.Index;
             Instance.PlayerData.Set(player.Index, in data);
+
+            var clipData = ClipData.Get(data.ClipIndex);
+            Player_SetPlayRange(player, new CraPlayRange { MinTime = 0f, MaxTime = clipData.FrameCount / clipData.FPS });
         }
 
         public CraHandle Player_GetClip(CraHandle player)
@@ -155,7 +157,7 @@ public partial class CraMain
         {
             CraPlayerData data = playerData[player.Index];
             data.Finished = false;
-            data.Playback = 0f;
+            data.Playback = data.PlaybackRange.MinTime;
             data.IsPlaying = false;
             playerData[player.Index] = data;
         }
@@ -164,7 +166,7 @@ public partial class CraMain
         {
             CraPlayerData data = Instance.PlayerData.Get(player.Index);
             data.Finished = false;
-            data.Playback = 0f;
+            data.Playback = data.PlaybackRange.MinTime;
             data.IsPlaying = false;
             Instance.PlayerData.Set(player.Index, in data);
         }
@@ -175,10 +177,28 @@ public partial class CraMain
             return data.IsPlaying;
         }
 
-        public float Player_GetPlayback(CraHandle player)
+        public void Player_SetPlayRange(CraHandle player, CraPlayRange range)
+        {
+            Debug.Assert(range.MinTime < range.MaxTime);
+
+            CraPlayerData data = Instance.PlayerData.Get(player.Index);
+            if (data.ClipIndex < 0)
+            {
+                Debug.LogError($"Cannot set play range of clip {player.Index}, since it has no clip assigned!");
+                return;
+            }
+            var clipData = ClipData.Get(data.ClipIndex);
+            float clipDuration = clipData.FrameCount / clipData.FPS;
+            range.MinTime = Mathf.Clamp(range.MinTime, 0f, clipDuration - (1f / clipData.FPS));
+            range.MaxTime = Mathf.Clamp(range.MaxTime, range.MinTime + (1f / clipData.FPS), clipDuration);
+            data.PlaybackRange = range;
+            Instance.PlayerData.Set(player.Index, in data);
+        }
+
+        public CraPlayRange Player_GetPlayRange(CraHandle player)
         {
             CraPlayerData data = Instance.PlayerData.Get(player.Index);
-            return data.Playback;
+            return data.PlaybackRange;
         }
 
         internal static void Player_Play(NativeArray<CraPlayerData> playerData, CraHandle player, float transitionTime = 0.0f)
@@ -196,6 +216,19 @@ public partial class CraMain
             data.TransitionTime = transitionTime;
             data.TransitionProgress = transitionTime > 0.0f ? 0f : 1f;
             playerData[player.Index] = data;
+        }
+
+        public void Player_SetTime(CraHandle player, float time)
+        {
+            CraPlayerData data = Instance.PlayerData.Get(player.Index);
+            data.Playback = time;
+            Instance.PlayerData.Set(player.Index, in data);
+        }
+
+        public float Player_GetTime(CraHandle player)
+        {
+            CraPlayerData data = Instance.PlayerData.Get(player.Index);
+            return data.Playback;
         }
 
         public void Player_Play(CraHandle player, float transitionTime = 0.0f)
@@ -527,23 +560,24 @@ public partial class CraMain
             player.TransitionProgress = math.clamp(player.TransitionProgress + DeltaTime / player.TransitionTime, 0f, 1f);
 
             CraClipData clip = ClipData[player.ClipIndex];
-            float duration = clip.FrameCount / clip.FPS;
+            float playMin = player.PlaybackRange.MinTime;
+            float playMax = player.PlaybackRange.MaxTime;
             player.Playback += DeltaTime * player.PlaybackSpeed;
 
             if (player.PlaybackSpeed > 0f)
             {
-                if (player.Playback >= duration)
+                if (player.Playback >= playMax)
                 {
                     if (!player.Looping)
                     {
-                        player.Playback = duration - 0.001f;
+                        player.Playback = playMax - 0.001f;
                         player.IsPlaying = false;
                         player.Finished = true;
                     }
                     else
                     {
-                        player.Playback = 0;
-                        player.FrameIndex = 0;
+                        player.Playback = playMin;
+                        player.FrameIndex = (int)(playMin * clip.FPS);
                         player.Finished = false;
                     }
                 }
@@ -558,14 +592,14 @@ public partial class CraMain
                 {
                     if (!player.Looping)
                     {
-                        player.Playback = 0.001f;
+                        player.Playback = playMin + 0.001f;
                         player.IsPlaying = false;
                         player.Finished = true;
                     }
                     else
                     {
-                        player.Playback = duration;
-                        player.FrameIndex = (int)math.floor(clip.FPS * duration);
+                        player.Playback = playMax;
+                        player.FrameIndex = (int)(playMax * clip.FPS);
                         player.Finished = false;
                     }
                 }
@@ -638,6 +672,7 @@ public partial class CraMain
         public bool Looping;
         public bool IsPlaying;
         public float PlaybackSpeed;
+        public CraPlayRange PlaybackRange;
         public float Playback;
         public float TransitionTime;
         public float TransitionProgress;
