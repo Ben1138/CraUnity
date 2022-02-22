@@ -4,12 +4,12 @@ using UnityEngine;
 using UnityEditor;
 using UnityEditor.IMGUI.Controls;
 
-public class CraRuntimeMonitor : EditorWindow
+public class CraMemoryMonitor : EditorWindow
 {
-    [MenuItem("Cra/Runtime Monitor")]
+    [MenuItem("Cra/Memory Monitor")]
     public static void OpenRuntimeMonitor()
     {
-        CraRuntimeMonitor window = GetWindow<CraRuntimeMonitor>();
+        CraMemoryMonitor window = GetWindow<CraMemoryMonitor>();
         window.Show();
     }
 

@@ -17,8 +17,7 @@ public class CraStateMachineMonitor : EditorWindow
     CraStateMachine? Monitored;
     int ViewLayer = 0;
     string[] ViewLayerNames;
-    CraInput[] Inputs;
-    CraOutput[] Outputs;
+    CraMachineValue[] MachineValues;
     CraLayer[] Layers;
     CraState[] States;
     CraTransition[][] StateTransitions;
@@ -74,8 +73,7 @@ public class CraStateMachineMonitor : EditorWindow
                 return;
             }
 
-            Inputs = Monitored.Value.GetInputs();
-            Outputs = Monitored.Value.GetOutputs();
+            MachineValues = Monitored.Value.GetMachineValues();
             Layers = Monitored.Value.GetLayers();
             ViewLayerNames = new string[Layers.Length];
             for (int i = 0; i < ViewLayerNames.Length; ++i)
@@ -97,65 +95,40 @@ public class CraStateMachineMonitor : EditorWindow
         }
 
         ScrollPos = EditorGUILayout.BeginScrollView(ScrollPos);
-        GUILayout.Label("Inputs:");
-        if (Inputs.Length == 0)
+        EditorGUILayout.BeginHorizontal();
+        EditorGUILayout.BeginVertical();
+        GUILayout.Label("Machine Values:");
+        if (MachineValues.Length == 0)
         {
             EditorGUILayout.LabelField("State machine has no inputs!");
         }
         else
         {
-            for (int i = 0; i < Inputs.Length; ++i)
+            for (int i = 0; i < MachineValues.Length; ++i)
             {
-                CraValueUnion value = Inputs[i].GetValue();
+                CraValueUnion value = MachineValues[i].GetValue();
                 switch (value.Type)
                 {
                     case CraValueType.Int:
-                        EditorGUILayout.LabelField($"{Inputs[i].GetName()}:", $"{value.ValueInt}  (int)");
+                        EditorGUILayout.LabelField($"{MachineValues[i].GetName()}:", $"{value.ValueInt}  (int)");
                         break;
                     case CraValueType.Float:
-                        EditorGUILayout.LabelField($"{Inputs[i].GetName()}:", $"{value.ValueFloat:n2}  (float)");
+                        EditorGUILayout.LabelField($"{MachineValues[i].GetName()}:", $"{value.ValueFloat:n2}  (float)");
                         break;
                     case CraValueType.Bool:
-                        EditorGUILayout.LabelField($"{Inputs[i].GetName()}:", $"{value.ValueBool}  (bool)");
+                        EditorGUILayout.LabelField($"{MachineValues[i].GetName()}:", $"{value.ValueBool}  (bool)");
                         break;
                     case CraValueType.Trigger:
-                        EditorGUILayout.LabelField($"{Inputs[i].GetName()}:", $"{value.ValueBool}  (trigger)");
+                        EditorGUILayout.LabelField($"{MachineValues[i].GetName()}:", $"{value.ValueBool}  (trigger)");
                         break;
                     default:
-                        EditorGUILayout.LabelField($"{Inputs[i].GetName()}:", "UNHANDLED TYPE");
+                        EditorGUILayout.LabelField($"{MachineValues[i].GetName()}:", "UNHANDLED TYPE");
                         break;
                 }
             }
         }
-        EditorGUILayout.Space();
-        GUILayout.Label("Outputs:");
-        if (Outputs.Length == 0)
-        {
-            EditorGUILayout.LabelField("State machine has no outputs!");
-        }
-        else
-        {
-            for (int i = 0; i < Outputs.Length; ++i)
-            {
-                CraValueUnion value = Outputs[i].GetValue();
-                switch (value.Type)
-                {
-                    case CraValueType.Int:
-                        EditorGUILayout.LabelField($"{Outputs[i].GetName()}:", $"{value.ValueInt}  (int)");
-                        break;
-                    case CraValueType.Float:
-                        EditorGUILayout.LabelField($"{Outputs[i].GetName()}:", $"{value.ValueFloat:n2}  (float)");
-                        break;
-                    case CraValueType.Bool:
-                        EditorGUILayout.LabelField($"{Outputs[i].GetName()}:", $"{value.ValueBool}  (bool)");
-                        break;
-                    default:
-                        EditorGUILayout.LabelField($"{Outputs[i].GetName()}:", "UNHANDLED TYPE");
-                        break;
-                }
-            }
-        }
-        EditorGUILayout.Space();
+        EditorGUILayout.EndVertical();
+        EditorGUILayout.BeginVertical();
 
         int tmp = ViewLayer;
         ViewLayer = EditorGUILayout.Popup(ViewLayer, ViewLayerNames);
@@ -270,7 +243,9 @@ public class CraStateMachineMonitor : EditorWindow
                 }
             }
         }
+        EditorGUILayout.EndVertical();
 
+        EditorGUILayout.EndHorizontal();
         EditorGUILayout.EndScrollView();
     }
 

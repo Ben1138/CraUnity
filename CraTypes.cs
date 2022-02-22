@@ -169,14 +169,14 @@ public struct CraValueUnion
 
 public struct CraWriteOutput
 {
-    public CraOutput Output;
+    public CraMachineValue MachineValue;
     public CraValueUnion Value;
 }
 
 public struct CraCondition
 {
     public CraConditionType Type;
-    public CraInput Input;
+    public CraMachineValue Input;
     public CraValueUnion Value;
     public bool CompareToAbsolute;
 }
@@ -382,15 +382,13 @@ public struct CraSettings
     public int MaxBones;
 
     public CraBufferSettings StateMachines;
-    public CraBufferSettings Inputs;
-    public CraBufferSettings Outputs;
+    public CraBufferSettings MachineValues;
     public CraBufferSettings States;
     public CraBufferSettings Transitions;
 
     public const int MaxTransitions = 20;
-    public const int MaxLayers = 5;
-    public const int MaxInputs = 20;
-    public const int MaxOutputs = 50;
+    public const int MaxLayers = 2;
+    public const int MaxMachineValues = 64;
 
     public Func<string, int> BoneHashFunction;
 }
@@ -630,14 +628,14 @@ public struct CraState
         CraMain.Instance.StateMachines.State_SetSyncState(Handle, syncState.Handle);
     }
 
-    public void WriteOutputOnEnter(CraWriteOutput write)
+    public void WriteOnEnter(CraWriteOutput write)
     {
-        CraMain.Instance.StateMachines.State_WriteOutputOnEnter(Handle, write.Output.Handle, write.Value);
+        CraMain.Instance.StateMachines.State_WriteOutputOnEnter(Handle, write.MachineValue.Handle, write.Value);
     }
 
-    public void WriteOutputOnLeave(CraWriteOutput write)
+    public void WriteOnLeave(CraWriteOutput write)
     {
-        CraMain.Instance.StateMachines.State_WriteOutputOnLeave(Handle, write.Output.Handle, write.Value);
+        CraMain.Instance.StateMachines.State_WriteOutputOnLeave(Handle, write.MachineValue.Handle, write.Value);
     }
 
     public CraPlayer GetPlayer()
@@ -672,24 +670,24 @@ public struct CraState
 #endif
 }
 
-public struct CraInput
+public struct CraMachineValue
 {
     public CraHandle Handle { get; private set; }
 
 
-    public static CraInput CreateNew(CraStateMachine stateMachine, CraValueType type, string name=null)
+    public static CraMachineValue CreateNew(CraStateMachine stateMachine, CraValueType type, string name=null)
     {
-        CraHandle h = CraMain.Instance.StateMachines.Input_New(stateMachine.Handle, type);
+        CraHandle h = CraMain.Instance.StateMachines.StateMachine_NewValue(stateMachine.Handle, type);
 #if UNITY_EDITOR
-        CraMain.Instance.StateMachines.SetInputName(h, name);
+        CraMain.Instance.StateMachines.SetMachineValueName(h, name);
 #endif
-        return new CraInput
+        return new CraMachineValue
         {
             Handle = h
         };
     }
 
-    public CraInput(CraHandle inputHandle, string name=null)
+    public CraMachineValue(CraHandle inputHandle, string name=null)
     {
         Handle = inputHandle;
     }
@@ -701,102 +699,51 @@ public struct CraInput
 
     public CraValueUnion GetValue()
     {
-        return CraMain.Instance.StateMachines.Input_GetValue(Handle);
-    }
-
-    public void SetInt(int value)
-    {
-        CraMain.Instance.StateMachines.Input_SetValueInt(Handle, value);
-    }
-
-    public void SetFloat(float value)
-    {
-        CraMain.Instance.StateMachines.Input_SetValueFloat(Handle, value);
-    }
-
-    public void SetBool(bool value)
-    {
-        CraMain.Instance.StateMachines.Input_SetValueBool(Handle, value);
-    }
-
-    public void SetTrigger(bool value)
-    {
-        CraMain.Instance.StateMachines.Input_SetValueTrigger(Handle, value);
-    }
-
-#if UNITY_EDITOR
-    public string GetName()
-    {
-        string name = CraMain.Instance.StateMachines.GetInputName(Handle);
-        if (string.IsNullOrEmpty(name))
-        {
-            name = $"Input {Handle.Index}";
-        }
-        return name;
-    }
-#endif
-}
-
-// TODO: Unify inputs and outputs
-public struct CraOutput
-{
-    public CraHandle Handle { get; private set; }
-
-
-    public static CraOutput CreateNew(CraStateMachine stateMachine, CraValueType type, string name = null)
-    {
-        CraHandle h = CraMain.Instance.StateMachines.Output_New(stateMachine.Handle, type);
-#if UNITY_EDITOR
-        CraMain.Instance.StateMachines.SetOutputName(h, name);
-#endif
-        return new CraOutput
-        {
-            Handle = h
-        };
-    }
-
-    public CraOutput(CraHandle inputHandle, string name = null)
-    {
-        Handle = inputHandle;
-    }
-
-    public bool IsValid()
-    {
-        return Handle.IsValid();
-    }
-
-    public CraValueUnion GetValue()
-    {
-        return CraMain.Instance.StateMachines.Output_GetValue(Handle);
-    }
-
-    public void SetValue(CraValueUnion value)
-    {
-        CraMain.Instance.StateMachines.Output_SetValue(Handle, value);
+        return CraMain.Instance.StateMachines.MachineValue_GetValue(Handle);
     }
 
     public int GetInt()
     {
-        return CraMain.Instance.StateMachines.Output_GetValueInt(Handle);
+        return CraMain.Instance.StateMachines.MachineValue_GetValueInt(Handle);
     }
 
     public float GetFloat()
     {
-        return CraMain.Instance.StateMachines.Output_GetValueFloat(Handle);
+        return CraMain.Instance.StateMachines.MachineValue_GetValueFloat(Handle);
     }
 
     public bool GetBool()
     {
-        return CraMain.Instance.StateMachines.Output_GetValueBool(Handle);
+        return CraMain.Instance.StateMachines.MachineValue_GetValueBool(Handle);
+    }
+
+    public void SetInt(int value)
+    {
+        CraMain.Instance.StateMachines.MachineValue_SetValueInt(Handle, value);
+    }
+
+    public void SetFloat(float value)
+    {
+        CraMain.Instance.StateMachines.MachineValue_SetValueFloat(Handle, value);
+    }
+
+    public void SetBool(bool value)
+    {
+        CraMain.Instance.StateMachines.MachineValue_SetValueBool(Handle, value);
+    }
+
+    public void SetTrigger(bool value)
+    {
+        CraMain.Instance.StateMachines.MachineValue_SetValueTrigger(Handle, value);
     }
 
 #if UNITY_EDITOR
     public string GetName()
     {
-        string name = CraMain.Instance.StateMachines.GetOutputName(Handle);
+        string name = CraMain.Instance.StateMachines.GetMachineValueName(Handle);
         if (string.IsNullOrEmpty(name))
         {
-            name = $"Output {Handle.Index}";
+            name = $"Input {Handle.Index}";
         }
         return name;
     }
@@ -907,14 +854,9 @@ public struct CraStateMachine
         return CraLayer.CreateNew(this);
     }
 
-    public CraInput NewInput(CraValueType type, string name=null)
+    public CraMachineValue NewMachineValue(CraValueType type, string name=null)
     {
-        return CraInput.CreateNew(this, type, name);
-    }
-
-    public CraOutput NewOutput(CraValueType type, string name = null)
-    {
-        return CraOutput.CreateNew(this, type, name);
+        return CraMachineValue.CreateNew(this, type, name);
     }
 
     // CAUTION: CraLayer handles are local to the current state machine!
@@ -929,25 +871,14 @@ public struct CraStateMachine
         return layers;
     }
 
-    public CraInput[] GetInputs()
+    public CraMachineValue[] GetMachineValues()
     {
-        CraHandle[] handles = CraMain.Instance.StateMachines.StateMachine_GetInputs(Handle);
-        CraInput[] inputs = new CraInput[handles.Length];
+        CraHandle[] handles = CraMain.Instance.StateMachines.StateMachine_GetValues(Handle);
+        CraMachineValue[] inputs = new CraMachineValue[handles.Length];
         for (int i = 0; i < handles.Length; ++i)
         {
-            inputs[i] = new CraInput(handles[i]);
+            inputs[i] = new CraMachineValue(handles[i]);
         }
         return inputs;
-    }
-
-    public CraOutput[] GetOutputs()
-    {
-        CraHandle[] handles = CraMain.Instance.StateMachines.StateMachine_GetOutputs(Handle);
-        CraOutput[] outputs = new CraOutput[handles.Length];
-        for (int i = 0; i < handles.Length; ++i)
-        {
-            outputs[i] = new CraOutput(handles[i]);
-        }
-        return outputs;
     }
 }
