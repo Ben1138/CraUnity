@@ -20,8 +20,7 @@ public class CraMainComponent : MonoBehaviour
             MaxBones = 65535,
 
             StateMachines = new CraBufferSettings { Capacity = 1024, GrowFactor = 1.5f },
-            Inputs        = new CraBufferSettings { Capacity = 1024, GrowFactor = 1.5f },
-            Outputs       = new CraBufferSettings { Capacity = 1024, GrowFactor = 1.5f },
+            MachineValues = new CraBufferSettings { Capacity = 1024, GrowFactor = 1.5f },
             States        = new CraBufferSettings { Capacity = 1024, GrowFactor = 1.5f },
             Transitions   = new CraBufferSettings { Capacity = 1024, GrowFactor = 1.5f },
 

@@ -1,10 +1,9 @@
-using System;
-using System.Runtime.InteropServices;
 using System.Collections.Generic;
-using UnityEngine;
+using System.Runtime.InteropServices;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
+using UnityEngine;
 
 public unsafe partial class CraMain
 {
@@ -15,13 +14,11 @@ public unsafe partial class CraMain
         Dictionary<CraHandle, CraHandle> StateToMachine;
         Dictionary<CraHandle, CraHandle> StateToLayer;
         Dictionary<CraHandle, string> StateNames;
-        Dictionary<CraHandle, string> InputNames;
-        Dictionary<CraHandle, string> OutputNames;
+        Dictionary<CraHandle, string> ValueNames;
 #endif
 
         CraBuffer<CraStateMachineData> StateMachines;
-        CraBuffer<CraValueUnion> Inputs;
-        CraBuffer<CraValueUnion> Outputs;
+        CraBuffer<CraValueUnion> MachineValues;
         CraBuffer<CraStateData> States;
         CraBuffer<CraTransitionData> Transitions;
 
@@ -32,12 +29,10 @@ public unsafe partial class CraMain
             StateToMachine = new Dictionary<CraHandle, CraHandle>();
             StateToLayer = new Dictionary<CraHandle, CraHandle>();
             StateNames = new Dictionary<CraHandle, string>();
-            InputNames = new Dictionary<CraHandle, string>();
-            OutputNames = new Dictionary<CraHandle, string>();
+            ValueNames = new Dictionary<CraHandle, string>();
 #endif
             StateMachines = new CraBuffer<CraStateMachineData>(Instance.Settings.Transitions);
-            Inputs = new CraBuffer<CraValueUnion>(Instance.Settings.Inputs);
-            Outputs = new CraBuffer<CraValueUnion>(Instance.Settings.Outputs);
+            MachineValues = new CraBuffer<CraValueUnion>(Instance.Settings.MachineValues);
             States = new CraBuffer<CraStateData>(Instance.Settings.States);
             Transitions = new CraBuffer<CraTransitionData>(Instance.Settings.Transitions);
         }
@@ -111,162 +106,110 @@ public unsafe partial class CraMain
             return res;
         }
 
-        public CraHandle[] StateMachine_GetInputs(CraHandle stateMachine)
+        public CraHandle[] StateMachine_GetValues(CraHandle stateMachine)
         {
             Debug.Assert(stateMachine.IsValid());
             var machine = StateMachines.Get(stateMachine.Index);
-            CraHandle[] res = new CraHandle[machine.InputCount];
-            for (int i = 0; i < machine.InputCount; ++i)
+            CraHandle[] res = new CraHandle[machine.ValuesCount];
+            for (int i = 0; i < machine.ValuesCount; ++i)
             {
-                res[i] = new CraHandle(machine.Inputs[i]);
+                res[i] = new CraHandle(machine.Values[i]);
             }
             return res;
         }
 
-        public CraHandle[] StateMachine_GetOutputs(CraHandle stateMachine)
-        {
-            Debug.Assert(stateMachine.IsValid());
-            var machine = StateMachines.Get(stateMachine.Index);
-            CraHandle[] res = new CraHandle[machine.OutputCount];
-            for (int i = 0; i < machine.OutputCount; ++i)
-            {
-                res[i] = new CraHandle(machine.Outputs[i]);
-            }
-            return res;
-        }
-
-        public CraHandle Input_New(CraHandle stateMachine, CraValueType type)
+        public CraHandle StateMachine_NewValue(CraHandle stateMachine, CraValueType type)
         {
             Debug.Assert(stateMachine.IsValid());
 
             var machine = StateMachines.Get(stateMachine.Index);
-            if (machine.InputCount >= CraSettings.MaxInputs)
+            if (machine.ValuesCount >= CraSettings.MaxMachineValues)
             {
-                Debug.LogError($"Cannot add new input to state machine, maximum of {CraSettings.MaxInputs} exceeded!");
+                Debug.LogError($"Cannot add new value to state machine, maximum of {CraSettings.MaxMachineValues} exceeded!");
                 return CraHandle.Invalid;
             }
 
-            var h = new CraHandle(Inputs.Alloc());
+            var h = new CraHandle(MachineValues.Alloc());
             if (!h.IsValid())
             {
                 Debug.LogError($"Allocation of new input failed!");
                 return CraHandle.Invalid;
             }
 
-            var input = Inputs.Get(h.Index);
+            var input = MachineValues.Get(h.Index);
             input.Type = type;
-            Inputs.Set(h.Index, input);
+            MachineValues.Set(h.Index, input);
 
-            machine.Inputs[machine.InputCount++] = h.Index;
+            machine.Values[machine.ValuesCount++] = h.Index;
             StateMachines.Set(stateMachine.Index, machine);
 
             return h;
         }
 
-        public CraValueUnion Input_GetValue(CraHandle inputHandle)
+        public CraValueUnion MachineValue_GetValue(CraHandle valueHandle)
         {
-            Debug.Assert(inputHandle.IsValid());
-            return Inputs.Get(inputHandle.Index);
+            Debug.Assert(valueHandle.IsValid());
+            return MachineValues.Get(valueHandle.Index);
         }
 
-        public void Input_SetValueInt(CraHandle inputHandle, int value)
+        public int MachineValue_GetValueInt(CraHandle valueHandle)
         {
-            Debug.Assert(inputHandle.IsValid());
-            var input = Inputs.Get(inputHandle.Index);
-            Debug.Assert(input.Type == CraValueType.Int);
-            input.ValueInt = value;
-            Inputs.Set(inputHandle.Index, input);
-        }
-
-        public void Input_SetValueFloat(CraHandle inputHandle, float value)
-        {
-            Debug.Assert(inputHandle.IsValid());
-            var input = Inputs.Get(inputHandle.Index);
-            Debug.Assert(input.Type == CraValueType.Float);
-            input.ValueFloat = value;
-            Inputs.Set(inputHandle.Index, input);
-        }
-
-        public void Input_SetValueBool(CraHandle inputHandle, bool value)
-        {
-            Debug.Assert(inputHandle.IsValid());
-            var input = Inputs.Get(inputHandle.Index);
-            Debug.Assert(input.Type == CraValueType.Bool);
-            input.ValueBool = value;
-            Inputs.Set(inputHandle.Index, input);
-        }
-
-        public void Input_SetValueTrigger(CraHandle inputHandle, bool value)
-        {
-            Debug.Assert(inputHandle.IsValid());
-            var input = Inputs.Get(inputHandle.Index);
-            Debug.Assert(input.Type == CraValueType.Trigger);
-            input.ValueBool = value;
-            Inputs.Set(inputHandle.Index, input);
-        }
-
-        public CraHandle Output_New(CraHandle stateMachine, CraValueType type)
-        {
-            Debug.Assert(stateMachine.IsValid());
-
-            var machine = StateMachines.Get(stateMachine.Index);
-            if (machine.OutputCount >= CraSettings.MaxOutputs)
-            {
-                Debug.LogError($"Cannot add new output to state machine, maximum of {CraSettings.MaxOutputs} exceeded!");
-                return CraHandle.Invalid;
-            }
-
-            var h = new CraHandle(Outputs.Alloc());
-            if (!h.IsValid())
-            {
-                Debug.LogError($"Allocation of new output failed!");
-                return CraHandle.Invalid;
-            }
-
-            var output = Outputs.Get(h.Index);
-            output.Type = type;
-            Outputs.Set(h.Index, output);
-
-            machine.Outputs[machine.OutputCount++] = h.Index;
-            StateMachines.Set(stateMachine.Index, machine);
-
-            return h;
-        }
-
-        public CraValueUnion Output_GetValue(CraHandle outputHandle)
-        {
-            Debug.Assert(outputHandle.IsValid());
-            return Outputs.Get(outputHandle.Index);
-        }
-
-        public void Output_SetValue(CraHandle outputHandle, CraValueUnion value)
-        {
-            Debug.Assert(outputHandle.IsValid());
-            Outputs.Set(outputHandle.Index, value);
-        }
-
-        public int Output_GetValueInt(CraHandle outputHandle)
-        {
-            Debug.Assert(outputHandle.IsValid());
-            var output = Outputs.Get(outputHandle.Index);
+            Debug.Assert(valueHandle.IsValid());
+            var output = MachineValues.Get(valueHandle.Index);
             Debug.Assert(output.Type == CraValueType.Int);
             return output.ValueInt;
         }
 
-        public float Output_GetValueFloat(CraHandle outputHandle)
+        public float MachineValue_GetValueFloat(CraHandle valueHandle)
         {
-            Debug.Assert(outputHandle.IsValid());
-            var output = Outputs.Get(outputHandle.Index);
+            Debug.Assert(valueHandle.IsValid());
+            var output = MachineValues.Get(valueHandle.Index);
             Debug.Assert(output.Type == CraValueType.Float);
             return output.ValueFloat;
         }
 
-        public bool Output_GetValueBool(CraHandle outputHandle)
+        public bool MachineValue_GetValueBool(CraHandle valueHandle)
         {
-            Debug.Assert(outputHandle.IsValid());
-            var output = Outputs.Get(outputHandle.Index);
+            Debug.Assert(valueHandle.IsValid());
+            var output = MachineValues.Get(valueHandle.Index);
             Debug.Assert(output.Type == CraValueType.Bool);
             return output.ValueBool;
+        }
+
+        public void MachineValue_SetValueInt(CraHandle valueHandle, int value)
+        {
+            Debug.Assert(valueHandle.IsValid());
+            var input = MachineValues.Get(valueHandle.Index);
+            Debug.Assert(input.Type == CraValueType.Int);
+            input.ValueInt = value;
+            MachineValues.Set(valueHandle.Index, input);
+        }
+
+        public void MachineValue_SetValueFloat(CraHandle valueHandle, float value)
+        {
+            Debug.Assert(valueHandle.IsValid());
+            var input = MachineValues.Get(valueHandle.Index);
+            Debug.Assert(input.Type == CraValueType.Float);
+            input.ValueFloat = value;
+            MachineValues.Set(valueHandle.Index, input);
+        }
+
+        public void MachineValue_SetValueBool(CraHandle valueHandle, bool value)
+        {
+            Debug.Assert(valueHandle.IsValid());
+            var input = MachineValues.Get(valueHandle.Index);
+            Debug.Assert(input.Type == CraValueType.Bool);
+            input.ValueBool = value;
+            MachineValues.Set(valueHandle.Index, input);
+        }
+
+        public void MachineValue_SetValueTrigger(CraHandle valueHandle, bool value)
+        {
+            Debug.Assert(valueHandle.IsValid());
+            var input = MachineValues.Get(valueHandle.Index);
+            Debug.Assert(input.Type == CraValueType.Trigger);
+            input.ValueBool = value;
+            MachineValues.Set(valueHandle.Index, input);
         }
 
         public CraHandle Layer_New(CraHandle stateMachine)
@@ -336,12 +279,12 @@ public unsafe partial class CraMain
                 Instance.Players.Player_Play(state.Player, transitionTime);
             }
 
-            CraWrite* write = &state.WriteOutputEnter0;
+            CraWrite* write = &state.WriteValueEnter0;
             for (int wi = 0; wi < state.WriteEnterCount; ++wi)
             {
-                if (write[wi].Output.IsValid())
+                if (write[wi].MachineValue.IsValid())
                 {
-                    Outputs.Set(write[wi].Output.Index, write[wi].Value);
+                    MachineValues.Set(write[wi].MachineValue.Index, write[wi].Value);
                 }
             }
         }
@@ -381,21 +324,21 @@ public unsafe partial class CraMain
 
             var state = States.Get(stateHandle.Index);
             Debug.Assert(state.WriteEnterCount >= 0);
-            if (state.WriteEnterCount >= 16)
+            if (state.WriteEnterCount >= 40)
             {
-                Debug.LogError("Maximum of 16 write outputs reached!");
+                Debug.LogError("Maximum of 40 write outputs reached!");
                 return;
             }
 
-            CraWrite* write = &state.WriteOutputEnter0;
+            CraWrite* write = &state.WriteValueEnter0;
             for (int i = 0; i < state.WriteEnterCount; ++i)
             {
-                if (write[i].Output == outputHandle)
+                if (write[i].MachineValue == outputHandle)
                 {
                     Debug.LogWarning($"You're writing to output {outputHandle.Index} more than once in state {stateHandle.Index}!");
                 }
             }
-            write[state.WriteEnterCount].Output = outputHandle;
+            write[state.WriteEnterCount].MachineValue = outputHandle;
             write[state.WriteEnterCount].Value = value;
             state.WriteEnterCount++;
             States.Set(stateHandle.Index, state);
@@ -416,21 +359,21 @@ public unsafe partial class CraMain
 
             var state = States.Get(stateHandle.Index);
             Debug.Assert(state.WriteLeaveCount >= 0);
-            if (state.WriteLeaveCount >= 16)
+            if (state.WriteLeaveCount >= 40)
             {
-                Debug.LogError("Maximum of 16 write outputs reached!");
+                Debug.LogError("Maximum of 40 write outputs reached!");
                 return;
             }
 
-            CraWrite* write = &state.WriteOutputLeave0;
+            CraWrite* write = &state.WriteValueLeave0;
             for (int i = 0; i < state.WriteLeaveCount; ++i)
             {
-                if (write[i].Output == outputHandle)
+                if (write[i].MachineValue == outputHandle)
                 {
                     Debug.LogWarning($"You're writing to output {outputHandle.Index} more than once in state {stateHandle.Index}!");
                 }
             }
-            write[state.WriteLeaveCount].Output = outputHandle;
+            write[state.WriteLeaveCount].MachineValue = outputHandle;
             write[state.WriteLeaveCount].Value = value;
             state.WriteLeaveCount++;
             States.Set(stateHandle.Index, state);
@@ -547,42 +490,23 @@ public unsafe partial class CraMain
                 StateNames.Add(state, name);
             }
         }
-        public string GetInputName(CraHandle input)
+        public string GetMachineValueName(CraHandle input)
         {
-            if (InputNames.TryGetValue(input, out string name))
+            if (ValueNames.TryGetValue(input, out string name))
             {
                 return name;
             }
             return null;
         }
-        public void SetInputName(CraHandle input, string name)
+        public void SetMachineValueName(CraHandle machineValue, string name)
         {
-            if (InputNames.ContainsKey(input))
+            if (ValueNames.ContainsKey(machineValue))
             {
-                InputNames[input] = name;
+                ValueNames[machineValue] = name;
             }
             else
             {
-                InputNames.Add(input, name);
-            }
-        }
-        public string GetOutputName(CraHandle output)
-        {
-            if (OutputNames.TryGetValue(output, out string name))
-            {
-                return name;
-            }
-            return null;
-        }
-        public void SetOutputName(CraHandle output, string name)
-        {
-            if (OutputNames.ContainsKey(output))
-            {
-                OutputNames[output] = name;
-            }
-            else
-            {
-                OutputNames.Add(output, name);
+                ValueNames.Add(machineValue, name);
             }
         }
         public unsafe void UpdateStatistics()
@@ -592,10 +516,10 @@ public unsafe partial class CraMain
             Instance.Statistics.StateMachines.CurrentElements = StateMachines.GetNumAllocated();
             Instance.Statistics.StateMachines.CurrentBytes = (ulong)StateMachines.GetNumAllocated() * (ulong)sizeof(CraStateMachineData);
 
-            Instance.Statistics.Inputs.MaxElements = Inputs.GetCapacity();
-            Instance.Statistics.Inputs.MaxBytes = (ulong)Inputs.GetCapacity() * (ulong)sizeof(CraValueUnion);
-            Instance.Statistics.Inputs.CurrentElements = Inputs.GetNumAllocated();
-            Instance.Statistics.Inputs.CurrentBytes = (ulong)Inputs.GetNumAllocated() * (ulong)sizeof(CraValueUnion);
+            Instance.Statistics.Inputs.MaxElements = MachineValues.GetCapacity();
+            Instance.Statistics.Inputs.MaxBytes = (ulong)MachineValues.GetCapacity() * (ulong)sizeof(CraValueUnion);
+            Instance.Statistics.Inputs.CurrentElements = MachineValues.GetNumAllocated();
+            Instance.Statistics.Inputs.CurrentBytes = (ulong)MachineValues.GetNumAllocated() * (ulong)sizeof(CraValueUnion);
 
             Instance.Statistics.States.MaxElements = States.GetCapacity();
             Instance.Statistics.States.MaxBytes = (ulong)States.GetCapacity() * (ulong)sizeof(CraStateData);
@@ -619,8 +543,7 @@ public unsafe partial class CraMain
         {
             Instance.MachineJob.Players = Instance.PlayerData.GetMemoryBuffer();
             Instance.MachineJob.StateMachines = StateMachines.GetMemoryBuffer();
-            Instance.MachineJob.Inputs = Inputs.GetMemoryBuffer();
-            Instance.MachineJob.Outputs = Outputs.GetMemoryBuffer();
+            Instance.MachineJob.MachineValues = MachineValues.GetMemoryBuffer();
             Instance.MachineJob.States = States.GetMemoryBuffer();
             Instance.MachineJob.Transitions = Transitions.GetMemoryBuffer();
 
@@ -654,14 +577,14 @@ public unsafe partial class CraMain
             }
 
             // Reset all Input Triggers
-            for (int i = 0; i < Inputs.GetNumAllocated(); ++i)
+            for (int i = 0; i < MachineValues.GetNumAllocated(); ++i)
             {
-                var data = Inputs.Get(i);
+                var data = MachineValues.Get(i);
                 if (data.Type == CraValueType.Trigger)
                 {
                     data.ValueBool = false;
                 }
-                Inputs.Set(i, data);
+                MachineValues.Set(i, data);
             }
         }
 
@@ -671,12 +594,10 @@ public unsafe partial class CraMain
             StateToMachine.Clear();
             StateToLayer.Clear();
             StateNames.Clear();
-            InputNames.Clear();
-            OutputNames.Clear();
+            ValueNames.Clear();
 
             StateMachines.Clear();
-            Inputs.Clear();
-            Outputs.Clear();
+            MachineValues.Clear();
             States.Clear();
             Transitions.Clear();
         }
@@ -687,12 +608,10 @@ public unsafe partial class CraMain
             StateToMachine.Clear();
             StateToLayer.Clear();
             StateNames.Clear();
-            InputNames.Clear();
-            OutputNames.Clear();
+            ValueNames.Clear();
 
             StateMachines.Destroy();
-            Inputs.Destroy();
-            Outputs.Destroy();
+            MachineValues.Destroy();
             States.Destroy();
             Transitions.Destroy();
         }
@@ -705,16 +624,13 @@ public unsafe partial class CraMain
         public fixed int ActiveState[CraSettings.MaxLayers];
         public fixed bool Transitioning[CraSettings.MaxLayers];
 
-        public fixed int Inputs[CraSettings.MaxInputs];
-        public int InputCount;
-
-        public fixed int Outputs[CraSettings.MaxOutputs];
-        public int OutputCount;
+        public fixed int Values[CraSettings.MaxMachineValues];
+        public int ValuesCount;
     }
 
     struct CraWrite
     {
-        public CraHandle Output;
+        public CraHandle MachineValue;
         public CraValueUnion Value;
     }
 
@@ -728,40 +644,88 @@ public unsafe partial class CraMain
         public fixed int Transitions[CraSettings.MaxTransitions];
 
         public int WriteEnterCount;
-        public CraWrite WriteOutputEnter0;
-        public CraWrite WriteOutputEnter1;
-        public CraWrite WriteOutputEnter2;
-        public CraWrite WriteOutputEnter3;
-        public CraWrite WriteOutputEnter4;
-        public CraWrite WriteOutputEnter5;
-        public CraWrite WriteOutputEnter6;
-        public CraWrite WriteOutputEnter7;
-        public CraWrite WriteOutputEnter8;
-        public CraWrite WriteOutputEnter9;
-        public CraWrite WriteOutputEnter10;
-        public CraWrite WriteOutputEnter11;
-        public CraWrite WriteOutputEnter12;
-        public CraWrite WriteOutputEnter13;
-        public CraWrite WriteOutputEnter14;
-        public CraWrite WriteOutputEnter15;
+        public CraWrite WriteValueEnter0;
+        public CraWrite WriteValueEnter1;
+        public CraWrite WriteValueEnter2;
+        public CraWrite WriteValueEnter3;
+        public CraWrite WriteValueEnter4;
+        public CraWrite WriteValueEnter5;
+        public CraWrite WriteValueEnter6;
+        public CraWrite WriteValueEnter7;
+        public CraWrite WriteValueEnter8;
+        public CraWrite WriteValueEnter9;
+        public CraWrite WriteValueEnter10;
+        public CraWrite WriteValueEnter11;
+        public CraWrite WriteValueEnter12;
+        public CraWrite WriteValueEnter13;
+        public CraWrite WriteValueEnter14;
+        public CraWrite WriteValueEnter15;
+        public CraWrite WriteValueEnter16;
+        public CraWrite WriteValueEnter17;
+        public CraWrite WriteValueEnter18;
+        public CraWrite WriteValueEnter19;
+        public CraWrite WriteValueEnter20;
+        public CraWrite WriteValueEnter21;
+        public CraWrite WriteValueEnter22;
+        public CraWrite WriteValueEnter23;
+        public CraWrite WriteValueEnter24;
+        public CraWrite WriteValueEnter25;
+        public CraWrite WriteValueEnter26;
+        public CraWrite WriteValueEnter27;
+        public CraWrite WriteValueEnter28;
+        public CraWrite WriteValueEnter29;
+        public CraWrite WriteValueEnter30;
+        public CraWrite WriteValueEnter31;
+        public CraWrite WriteValueEnter32;
+        public CraWrite WriteValueEnter33;
+        public CraWrite WriteValueEnter34;
+        public CraWrite WriteValueEnter35;
+        public CraWrite WriteValueEnter36;
+        public CraWrite WriteValueEnter37;
+        public CraWrite WriteValueEnter38;
+        public CraWrite WriteValueEnter39;
 
         public int WriteLeaveCount;
-        public CraWrite WriteOutputLeave0;
-        public CraWrite WriteOutputLeave1;
-        public CraWrite WriteOutputLeave2;
-        public CraWrite WriteOutputLeave3;
-        public CraWrite WriteOutputLeave4;
-        public CraWrite WriteOutputLeave5;
-        public CraWrite WriteOutputLeave6;
-        public CraWrite WriteOutputLeave7;
-        public CraWrite WriteOutputLeave8;
-        public CraWrite WriteOutputLeave9;
-        public CraWrite WriteOutputLeave10;
-        public CraWrite WriteOutputLeave11;
-        public CraWrite WriteOutputLeave12;
-        public CraWrite WriteOutputLeave13;
-        public CraWrite WriteOutputLeave14;
-        public CraWrite WriteOutputLeave15;
+        public CraWrite WriteValueLeave0;
+        public CraWrite WriteValueLeave1;
+        public CraWrite WriteValueLeave2;
+        public CraWrite WriteValueLeave3;
+        public CraWrite WriteValueLeave4;
+        public CraWrite WriteValueLeave5;
+        public CraWrite WriteValueLeave6;
+        public CraWrite WriteValueLeave7;
+        public CraWrite WriteValueLeave8;
+        public CraWrite WriteValueLeave9;
+        public CraWrite WriteValueLeave10;
+        public CraWrite WriteValueLeave11;
+        public CraWrite WriteValueLeave12;
+        public CraWrite WriteValueLeave13;
+        public CraWrite WriteValueLeave14;
+        public CraWrite WriteValueLeave15;
+        public CraWrite WriteValueLeave16;
+        public CraWrite WriteValueLeave17;
+        public CraWrite WriteValueLeave18;
+        public CraWrite WriteValueLeave19;
+        public CraWrite WriteValueLeave20;
+        public CraWrite WriteValueLeave21;
+        public CraWrite WriteValueLeave22;
+        public CraWrite WriteValueLeave23;
+        public CraWrite WriteValueLeave24;
+        public CraWrite WriteValueLeave25;
+        public CraWrite WriteValueLeave26;
+        public CraWrite WriteValueLeave27;
+        public CraWrite WriteValueLeave28;
+        public CraWrite WriteValueLeave29;
+        public CraWrite WriteValueLeave30;
+        public CraWrite WriteValueLeave31;
+        public CraWrite WriteValueLeave32;
+        public CraWrite WriteValueLeave33;
+        public CraWrite WriteValueLeave34;
+        public CraWrite WriteValueLeave35;
+        public CraWrite WriteValueLeave36;
+        public CraWrite WriteValueLeave37;
+        public CraWrite WriteValueLeave38;
+        public CraWrite WriteValueLeave39;
     }
 
     [BurstCompile]
@@ -776,11 +740,7 @@ public unsafe partial class CraMain
 
         // Read + Write
         [NativeDisableParallelForRestriction]
-        public NativeArray<CraValueUnion> Inputs;
-
-        // Read + Write
-        [NativeDisableParallelForRestriction]
-        public NativeArray<CraValueUnion> Outputs;
+        public NativeArray<CraValueUnion> MachineValues;
 
         [ReadOnly]
         public NativeArray<CraStateData> States;
@@ -813,7 +773,7 @@ public unsafe partial class CraMain
 
                 if (state.PlaybackSpeedInput.IsValid())
                 {
-                    var input = Inputs[state.PlaybackSpeedInput.Index];
+                    var input = MachineValues[state.PlaybackSpeedInput.Index];
                     CraPlaybackManager.Player_SetPlaybackSpeed(Players, state.Player, input.ValueFloat);
                 }
 
@@ -838,12 +798,12 @@ public unsafe partial class CraMain
                         machine.ActiveState[li] = tran.Target.Handle.Index;
                         machine.Transitioning[li] = true;
 
-                        CraWrite* write = &state.WriteOutputLeave0;
+                        CraWrite* write = &state.WriteValueLeave0;
                         for (int wi = 0; wi < state.WriteLeaveCount; ++wi)
                         {
-                            if (write[wi].Output.IsValid())
+                            if (write[wi].MachineValue.IsValid())
                             {
-                                Outputs[write[wi].Output.Index] = write[wi].Value;
+                                MachineValues[write[wi].MachineValue.Index] = write[wi].Value;
                             }
                         }
 
@@ -861,12 +821,12 @@ public unsafe partial class CraMain
                             CraPlaybackManager.Player_Play(Players, newState.Player, tran.TransitionTime);
                         }
 
-                        write = &newState.WriteOutputEnter0;
+                        write = &newState.WriteValueEnter0;
                         for (int wi = 0; wi < newState.WriteEnterCount; ++wi)
                         {
-                            if (write[wi].Output.IsValid())
+                            if (write[wi].MachineValue.IsValid())
                             {
-                                Outputs[write[wi].Output.Index] = write[wi].Value;
+                                MachineValues[write[wi].MachineValue.Index] = write[wi].Value;
                             }
                         }
 
@@ -917,7 +877,7 @@ public unsafe partial class CraMain
                 return true;
             }
 
-            var input = Inputs[con.Input.Handle.Index];
+            var input = MachineValues[con.Input.Handle.Index];
             int valueInt = con.CompareToAbsolute ? Mathf.Abs(input.ValueInt) : input.ValueInt;
             float valueFloat = con.CompareToAbsolute ? Mathf.Abs(input.ValueFloat) : input.ValueFloat;
 
