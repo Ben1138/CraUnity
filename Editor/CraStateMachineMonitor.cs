@@ -96,6 +96,7 @@ public class CraStateMachineMonitor : EditorWindow
             return;
         }
 
+        ScrollPos = EditorGUILayout.BeginScrollView(ScrollPos);
         GUILayout.Label("Inputs:");
         if (Inputs.Length == 0)
         {
@@ -178,8 +179,6 @@ public class CraStateMachineMonitor : EditorWindow
             EditorGUILayout.LabelField("No States on Layer");
             return;
         }
-
-        ScrollPos = EditorGUILayout.BeginScrollView(ScrollPos);
 
         CraState active = layer.GetActiveState();
         for (int si = 0; si < States.Length; ++si)

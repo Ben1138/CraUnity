@@ -96,6 +96,18 @@ public partial class CraMain
             return data.FrameCount / data.FPS;
         }
 
+        public int Clip_GetFrameCount(CraHandle clip)
+        {
+            CraClipData data = ClipData.Get(clip.Index);
+            return data.FrameCount;
+        }
+
+        public float Clip_GetFPS(CraHandle clip)
+        {
+            CraClipData data = ClipData.Get(clip.Index);
+            return data.FPS;
+        }
+
         public CraHandle Player_New()
         {
             int newIdx = Instance.PlayerData.Alloc();
