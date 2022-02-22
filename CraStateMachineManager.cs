@@ -239,6 +239,12 @@ public unsafe partial class CraMain
             return Outputs.Get(outputHandle.Index);
         }
 
+        public void Output_SetValue(CraHandle outputHandle, CraValueUnion value)
+        {
+            Debug.Assert(outputHandle.IsValid());
+            Outputs.Set(outputHandle.Index, value);
+        }
+
         public int Output_GetValueInt(CraHandle outputHandle)
         {
             Debug.Assert(outputHandle.IsValid());
@@ -330,8 +336,8 @@ public unsafe partial class CraMain
                 Instance.Players.Player_Play(state.Player, transitionTime);
             }
 
-            CraWrite* write = &state.WriteOutput0;
-            for (int wi = 0; wi < state.WriteCount; ++wi)
+            CraWrite* write = &state.WriteOutputEnter0;
+            for (int wi = 0; wi < state.WriteEnterCount; ++wi)
             {
                 if (write[wi].Output.IsValid())
                 {
@@ -360,7 +366,7 @@ public unsafe partial class CraMain
             return h;
         }
 
-        public unsafe void State_WriteOutput(CraHandle stateHandle, CraHandle outputHandle, CraValueUnion value)
+        public unsafe void State_WriteOutputOnEnter(CraHandle stateHandle, CraHandle outputHandle, CraValueUnion value)
         {
             if (!stateHandle.IsValid())
             {
@@ -374,24 +380,59 @@ public unsafe partial class CraMain
             }
 
             var state = States.Get(stateHandle.Index);
-            Debug.Assert(state.WriteCount >= 0);
-            if (state.WriteCount >= 4)
+            Debug.Assert(state.WriteEnterCount >= 0);
+            if (state.WriteEnterCount >= 16)
             {
-                Debug.LogError("Maximum of 4 write outputs reached!");
+                Debug.LogError("Maximum of 16 write outputs reached!");
                 return;
             }
 
-            CraWrite* write = &state.WriteOutput0;
-            for (int i = 0; i < state.WriteCount; ++i)
+            CraWrite* write = &state.WriteOutputEnter0;
+            for (int i = 0; i < state.WriteEnterCount; ++i)
             {
                 if (write[i].Output == outputHandle)
                 {
                     Debug.LogWarning($"You're writing to output {outputHandle.Index} more than once in state {stateHandle.Index}!");
                 }
             }
-            write[state.WriteCount].Output = outputHandle;
-            write[state.WriteCount].Value = value;
-            state.WriteCount++;
+            write[state.WriteEnterCount].Output = outputHandle;
+            write[state.WriteEnterCount].Value = value;
+            state.WriteEnterCount++;
+            States.Set(stateHandle.Index, state);
+        }
+
+        public unsafe void State_WriteOutputOnLeave(CraHandle stateHandle, CraHandle outputHandle, CraValueUnion value)
+        {
+            if (!stateHandle.IsValid())
+            {
+                Debug.LogError("Given state handle is invalid!");
+                return;
+            }
+            if (!outputHandle.IsValid())
+            {
+                Debug.LogError("Given output handle is invalid!");
+                return;
+            }
+
+            var state = States.Get(stateHandle.Index);
+            Debug.Assert(state.WriteLeaveCount >= 0);
+            if (state.WriteLeaveCount >= 16)
+            {
+                Debug.LogError("Maximum of 16 write outputs reached!");
+                return;
+            }
+
+            CraWrite* write = &state.WriteOutputLeave0;
+            for (int i = 0; i < state.WriteLeaveCount; ++i)
+            {
+                if (write[i].Output == outputHandle)
+                {
+                    Debug.LogWarning($"You're writing to output {outputHandle.Index} more than once in state {stateHandle.Index}!");
+                }
+            }
+            write[state.WriteLeaveCount].Output = outputHandle;
+            write[state.WriteLeaveCount].Value = value;
+            state.WriteLeaveCount++;
             States.Set(stateHandle.Index, state);
         }
 
@@ -686,11 +727,41 @@ public unsafe partial class CraMain
         public int TransitionsCount;
         public fixed int Transitions[CraSettings.MaxTransitions];
 
-        public int WriteCount;
-        public CraWrite WriteOutput0;
-        public CraWrite WriteOutput1;
-        public CraWrite WriteOutput2;
-        public CraWrite WriteOutput3;
+        public int WriteEnterCount;
+        public CraWrite WriteOutputEnter0;
+        public CraWrite WriteOutputEnter1;
+        public CraWrite WriteOutputEnter2;
+        public CraWrite WriteOutputEnter3;
+        public CraWrite WriteOutputEnter4;
+        public CraWrite WriteOutputEnter5;
+        public CraWrite WriteOutputEnter6;
+        public CraWrite WriteOutputEnter7;
+        public CraWrite WriteOutputEnter8;
+        public CraWrite WriteOutputEnter9;
+        public CraWrite WriteOutputEnter10;
+        public CraWrite WriteOutputEnter11;
+        public CraWrite WriteOutputEnter12;
+        public CraWrite WriteOutputEnter13;
+        public CraWrite WriteOutputEnter14;
+        public CraWrite WriteOutputEnter15;
+
+        public int WriteLeaveCount;
+        public CraWrite WriteOutputLeave0;
+        public CraWrite WriteOutputLeave1;
+        public CraWrite WriteOutputLeave2;
+        public CraWrite WriteOutputLeave3;
+        public CraWrite WriteOutputLeave4;
+        public CraWrite WriteOutputLeave5;
+        public CraWrite WriteOutputLeave6;
+        public CraWrite WriteOutputLeave7;
+        public CraWrite WriteOutputLeave8;
+        public CraWrite WriteOutputLeave9;
+        public CraWrite WriteOutputLeave10;
+        public CraWrite WriteOutputLeave11;
+        public CraWrite WriteOutputLeave12;
+        public CraWrite WriteOutputLeave13;
+        public CraWrite WriteOutputLeave14;
+        public CraWrite WriteOutputLeave15;
     }
 
     [BurstCompile]
@@ -766,6 +837,16 @@ public unsafe partial class CraMain
                     {
                         machine.ActiveState[li] = tran.Target.Handle.Index;
                         machine.Transitioning[li] = true;
+
+                        CraWrite* write = &state.WriteOutputLeave0;
+                        for (int wi = 0; wi < state.WriteLeaveCount; ++wi)
+                        {
+                            if (write[wi].Output.IsValid())
+                            {
+                                Outputs[write[wi].Output.Index] = write[wi].Value;
+                            }
+                        }
+
                         CraStateData newState = States[machine.ActiveState[li]];
                         if (newState.Player.IsValid())
                         {
@@ -780,8 +861,8 @@ public unsafe partial class CraMain
                             CraPlaybackManager.Player_Play(Players, newState.Player, tran.TransitionTime);
                         }
 
-                        CraWrite* write = &newState.WriteOutput0;
-                        for (int wi = 0; wi < newState.WriteCount; ++wi)
+                        write = &newState.WriteOutputEnter0;
+                        for (int wi = 0; wi < newState.WriteEnterCount; ++wi)
                         {
                             if (write[wi].Output.IsValid())
                             {

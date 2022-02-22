@@ -390,7 +390,7 @@ public struct CraSettings
     public const int MaxTransitions = 20;
     public const int MaxLayers = 5;
     public const int MaxInputs = 20;
-    public const int MaxOutputs = 10;
+    public const int MaxOutputs = 50;
 
     public Func<string, int> BoneHashFunction;
 }
@@ -421,6 +421,16 @@ public struct CraClip
     public float GetDuration()
     {
         return CraMain.Instance.Players.Clip_GetDuration(Handle);
+    }
+
+    public int GetFrameCount()
+    {
+        return CraMain.Instance.Players.Clip_GetFrameCount(Handle);
+    }
+
+    public float GetFPS()
+    {
+        return CraMain.Instance.Players.Clip_GetFPS(Handle);
     }
 
     public static bool operator ==(CraClip lhs, CraClip rhs)
@@ -620,9 +630,14 @@ public struct CraState
         CraMain.Instance.StateMachines.State_SetSyncState(Handle, syncState.Handle);
     }
 
-    public void WriteOutput(CraWriteOutput write)
+    public void WriteOutputOnEnter(CraWriteOutput write)
     {
-        CraMain.Instance.StateMachines.State_WriteOutput(Handle, write.Output.Handle, write.Value);
+        CraMain.Instance.StateMachines.State_WriteOutputOnEnter(Handle, write.Output.Handle, write.Value);
+    }
+
+    public void WriteOutputOnLeave(CraWriteOutput write)
+    {
+        CraMain.Instance.StateMachines.State_WriteOutputOnLeave(Handle, write.Output.Handle, write.Value);
     }
 
     public CraPlayer GetPlayer()
@@ -722,6 +737,7 @@ public struct CraInput
 #endif
 }
 
+// TODO: Unify inputs and outputs
 public struct CraOutput
 {
     public CraHandle Handle { get; private set; }
@@ -752,6 +768,11 @@ public struct CraOutput
     public CraValueUnion GetValue()
     {
         return CraMain.Instance.StateMachines.Output_GetValue(Handle);
+    }
+
+    public void SetValue(CraValueUnion value)
+    {
+        CraMain.Instance.StateMachines.Output_SetValue(Handle, value);
     }
 
     public int GetInt()
