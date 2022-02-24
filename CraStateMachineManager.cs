@@ -876,6 +876,24 @@ public unsafe partial class CraMain
             {
                 return true;
             }
+            if (con.Type == CraConditionType.IsFinished)
+            {
+                return state.Player.IsValid() && CraPlaybackManager.Player_IsFinished(Players, state.Player);
+            }
+            if (state.Player.IsValid())
+            {
+                var player = Players[state.Player.Index];
+                if ((con.Type == CraConditionType.TimeMin && player.Playback >= con.Value.ValueFloat) ||
+                    (con.Type == CraConditionType.TimeMax && player.Playback <= con.Value.ValueFloat))
+                {
+                    return true;
+                }
+            }
+            if (!con.Input.IsValid())
+            {
+                // Is this right?
+                return false;
+            }
 
             var input = MachineValues[con.Input.Handle.Index];
             int valueInt = con.CompareToAbsolute ? Mathf.Abs(input.ValueInt) : input.ValueInt;
@@ -922,10 +940,6 @@ public unsafe partial class CraMain
                 //    input.ValueBool = false;
                 //    Inputs[con.Input.Handle.Index] = input;
                 //}
-            }
-            else if (con.Type == CraConditionType.IsFinished && state.Player.IsValid() && CraPlaybackManager.Player_IsFinished(Players, state.Player))
-            {
-                conditionMet = true;
             }
 
             return conditionMet;

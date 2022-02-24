@@ -140,13 +140,17 @@ public enum CraConditionType
 {
     None,
 
+    // Value conditions
     Equal,
     Greater,
     Less,
     GreaterOrEqual,
     LessOrEqual,
-
     Trigger,
+
+    // State conditions
+    TimeMin,        // Using Float Value as Time
+    TimeMax,        // Using Float Value as Time
     IsFinished
 }
 
@@ -180,6 +184,7 @@ public struct CraCondition
     public CraValueUnion Value;
     public bool CompareToAbsolute;
 }
+
 
 [StructLayout(LayoutKind.Sequential)]
 public struct CraConditionOr
@@ -674,6 +679,7 @@ public struct CraMachineValue
 {
     public CraHandle Handle { get; private set; }
 
+    public static CraMachineValue None => new CraMachineValue { Handle = CraHandle.Invalid };
 
     public static CraMachineValue CreateNew(CraStateMachine stateMachine, CraValueType type, string name=null)
     {
