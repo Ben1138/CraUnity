@@ -154,6 +154,11 @@ public enum CraConditionType
     IsFinished
 }
 
+public enum CraPlayMode
+{
+    Stop, Play, OneFrame
+}
+
 [StructLayout(LayoutKind.Explicit)]
 public struct CraValueUnion
 {
@@ -169,6 +174,15 @@ public struct CraValueUnion
     [FieldOffset(4)]
     public bool ValueBool;
 
+    public static bool operator ==(CraValueUnion lhs, CraValueUnion rhs)
+    {
+        return lhs.Type == rhs.Type && lhs.ValueInt == rhs.ValueInt;
+    }
+
+    public static bool operator !=(CraValueUnion lhs, CraValueUnion rhs)
+    {
+        return lhs.Type != rhs.Type || lhs.ValueInt != rhs.ValueInt;
+    }
 }
 
 public struct CraWriteOutput
@@ -520,10 +534,10 @@ public struct CraPlayer
         return CraMain.Instance.Players.Player_IsPlaying(Handle);
     }
 
-    public void Play(float transitionTime=0.0f)
+    public void SetPlay(CraPlayMode mode = CraPlayMode.Play, float transitionTime=0.0f)
     {
         Debug.Assert(IsValid());
-        CraMain.Instance.Players.Player_Play(Handle, transitionTime);
+        CraMain.Instance.Players.Player_SetPlay(Handle, mode, transitionTime);
     }
 
     public void SetPlayRange(in CraPlayRange range)
@@ -835,6 +849,7 @@ public struct CraLayer
 public struct CraStateMachine
 {
     public CraHandle Handle { get; private set; }
+    public static CraStateMachine None => new CraStateMachine { Handle = CraHandle.Invalid };
 
     public static CraStateMachine CreateNew()
     {

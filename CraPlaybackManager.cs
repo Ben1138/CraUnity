@@ -170,7 +170,7 @@ public partial class CraMain
             CraPlayerData data = playerData[player.Index];
             data.Finished = false;
             data.Playback = data.PlaybackRange.MinTime;
-            data.IsPlaying = false;
+            data.PlayMode = CraPlayMode.Stop;
             playerData[player.Index] = data;
         }
 
@@ -179,14 +179,14 @@ public partial class CraMain
             CraPlayerData data = Instance.PlayerData.Get(player.Index);
             data.Finished = false;
             data.Playback = data.PlaybackRange.MinTime;
-            data.IsPlaying = false;
+            data.PlayMode = CraPlayMode.Stop;
             Instance.PlayerData.Set(player.Index, in data);
         }
 
         public bool Player_IsPlaying(CraHandle player)
         {
             CraPlayerData data = Instance.PlayerData.Get(player.Index);
-            return data.IsPlaying;
+            return data.PlayMode == CraPlayMode.Play;
         }
 
         public void Player_SetPlayRange(CraHandle player, CraPlayRange range)
@@ -213,7 +213,7 @@ public partial class CraMain
             return data.PlaybackRange;
         }
 
-        internal static void Player_Play(NativeArray<CraPlayerData> playerData, CraHandle player, float transitionTime = 0.0f)
+        internal static void Player_SetPlay(NativeArray<CraPlayerData> playerData, CraHandle player, CraPlayMode mode, float transitionTime)
         {
             CraPlayerData data = playerData[player.Index];
             //if (data.PlaybackSpeed[subIdex] > 0f)
@@ -224,7 +224,7 @@ public partial class CraMain
             //{
             //    data.Playback[subIdex] = data.Duration[subIdex] - .001f;
             //}
-            data.IsPlaying = true;
+            data.PlayMode = mode;
             data.TransitionTime = transitionTime;
             data.TransitionProgress = transitionTime > 0.0f ? 0f : 1f;
             playerData[player.Index] = data;
@@ -243,9 +243,9 @@ public partial class CraMain
             return data.Playback;
         }
 
-        public void Player_Play(CraHandle player, float transitionTime = 0.0f)
+        public void Player_SetPlay(CraHandle player, CraPlayMode mode, float transitionTime)
         {
-            Player_Play(Instance.PlayerData.GetMemoryBuffer(), player, transitionTime);
+            Player_SetPlay(Instance.PlayerData.GetMemoryBuffer(), player, mode, transitionTime);
         }
 
         public float Player_GetPlaybackSpeed(CraHandle player)
@@ -458,6 +458,17 @@ public partial class CraMain
             JobHandle boneJob = Instance.BoneJob.Schedule(Bones, playerJob);
             boneJob.Complete();
 
+            // TODO: Hack
+            for (int i = 0; i < Instance.PlayerData.GetNumAllocated(); ++i)
+            {
+                var data = Instance.PlayerData.Get(i);
+                if (data.PlayMode == CraPlayMode.OneFrame)
+                {
+                    data.PlayMode = CraPlayMode.Stop;
+                    Instance.PlayerData.Set(i, data);
+                }
+            }
+
             return playerJob;
         }
 #if UNITY_EDITOR
@@ -564,7 +575,7 @@ public partial class CraMain
         public void Execute(int index)
         {
             CraPlayerData player = PlayerData[index];
-            if (!player.IsPlaying)
+            if (player.PlayMode == CraPlayMode.Stop)
             {
                 return;
             }
@@ -583,7 +594,7 @@ public partial class CraMain
                     if (!player.Looping)
                     {
                         player.Playback = playMax - 0.001f;
-                        player.IsPlaying = false;
+                        player.PlayMode = CraPlayMode.Stop;
                         player.Finished = true;
                     }
                     else
@@ -605,7 +616,7 @@ public partial class CraMain
                     if (!player.Looping)
                     {
                         player.Playback = playMin + 0.001f;
-                        player.IsPlaying = false;
+                        player.PlayMode = CraPlayMode.Stop;
                         player.Finished = true;
                     }
                     else
@@ -648,7 +659,7 @@ public partial class CraMain
             int boneIndex = BoneData[index].ClipBoneIndex;
 
             CraPlayerData player = PlayerData[playerIdx];
-            if (!player.IsPlaying)
+            if (player.PlayMode == CraPlayMode.Stop)
             {
                 return;
             }
@@ -682,7 +693,7 @@ public partial class CraMain
         // setable
         public int ClipIndex;
         public bool Looping;
-        public bool IsPlaying;
+        public CraPlayMode PlayMode;
         public float PlaybackSpeed;
         public CraPlayRange PlaybackRange;
         public float Playback;
