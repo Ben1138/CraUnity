@@ -15,17 +15,9 @@ public class CraStateMachineMonitor : EditorWindow
 
     GameObject MonitoredObject;
     CraStateMachine? Monitored;
-    int ViewLayer = 0;
-    string[] ViewLayerNames;
-    CraMachineValue[] MachineValues;
-    CraLayer[] Layers;
-    CraState[] States;
-    CraTransition[][] StateTransitions;
-    bool[] StatesFoldout;
 
-    Vector2 ScrollPos;
-    bool ShowPlayer;
-
+    CraStateMachineTreeView StateMachineTree;
+    CraMachineValueTreeView MachineValueTreeView;
 
     void Update()
     {
@@ -73,19 +65,8 @@ public class CraStateMachineMonitor : EditorWindow
                 return;
             }
 
-            MachineValues = Monitored.Value.GetMachineValues();
-            Layers = Monitored.Value.GetLayers();
-            ViewLayerNames = new string[Layers.Length];
-            for (int i = 0; i < ViewLayerNames.Length; ++i)
-            {
-                Debug.Assert(Layers[i].IsValid());
-                ViewLayerNames[i] = "Layer " + i;
-            }
-
-            if (ViewLayer >= Layers.Length)
-            {
-                ViewLayer = 0;
-            }
+            StateMachineTree = CraStateMachineTreeView.Create(Monitored.Value);
+            MachineValueTreeView = CraMachineValueTreeView.Create(Monitored.Value.GetMachineValues());
         }
 
         if (!Monitored.HasValue)
@@ -94,159 +75,15 @@ public class CraStateMachineMonitor : EditorWindow
             return;
         }
 
-        ScrollPos = EditorGUILayout.BeginScrollView(ScrollPos);
-        EditorGUILayout.BeginHorizontal();
-        EditorGUILayout.BeginVertical();
-        GUILayout.Label("Machine Values:");
-        if (MachineValues.Length == 0)
+        float half = position.width / 2f;
+        if (StateMachineTree != null)
         {
-            EditorGUILayout.LabelField("State machine has no inputs!");
+            StateMachineTree.OnGUI(new Rect(0, 0, half, position.height));
         }
-        else
+        if (MachineValueTreeView != null)
         {
-            for (int i = 0; i < MachineValues.Length; ++i)
-            {
-                CraValueUnion value = MachineValues[i].GetValue();
-                switch (value.Type)
-                {
-                    case CraValueType.Int:
-                        EditorGUILayout.LabelField($"{MachineValues[i].GetName()}:", $"{value.ValueInt}  (int)");
-                        break;
-                    case CraValueType.Float:
-                        EditorGUILayout.LabelField($"{MachineValues[i].GetName()}:", $"{value.ValueFloat:n2}  (float)");
-                        break;
-                    case CraValueType.Bool:
-                        EditorGUILayout.LabelField($"{MachineValues[i].GetName()}:", $"{value.ValueBool}  (bool)");
-                        break;
-                    case CraValueType.Trigger:
-                        EditorGUILayout.LabelField($"{MachineValues[i].GetName()}:", $"{value.ValueBool}  (trigger)");
-                        break;
-                    default:
-                        EditorGUILayout.LabelField($"{MachineValues[i].GetName()}:", "UNHANDLED TYPE");
-                        break;
-                }
-            }
+            MachineValueTreeView.OnGUI(new Rect(half, 0, half, position.height));
         }
-        EditorGUILayout.EndVertical();
-        EditorGUILayout.BeginVertical();
-
-        int tmp = ViewLayer;
-        ViewLayer = EditorGUILayout.Popup(ViewLayer, ViewLayerNames);
-        EditorGUILayout.Space();
-
-        CraLayer layer = Layers[ViewLayer];
-        if (ViewLayer != tmp || States == null)
-        {
-            States = layer.GetAllStates();
-            StatesFoldout = new bool[States.Length];
-            StateTransitions = new CraTransition[States.Length][];
-            for (int i = 0; i < States.Length; ++i)
-            {
-                Debug.Assert(States[i].IsValid());
-                StateTransitions[i] = States[i].GetTransitions();
-            }
-        }
-
-        if (States.Length == 0)
-        {
-            EditorGUILayout.LabelField("No States on Layer");
-            return;
-        }
-
-        CraState active = layer.GetActiveState();
-        for (int si = 0; si < States.Length; ++si)
-        {
-            CraState state = States[si];
-            Debug.Assert(state.IsValid());
-
-            StatesFoldout[si] = EditorGUILayout.Foldout(StatesFoldout[si], $"{state.GetName()} {(state == active ? "[ACTIVE]" : "")}", true);
-            if (StatesFoldout[si])
-            {
-                CraPlayer player = state.GetPlayer();
-                if (player.IsValid())
-                {
-                    var range = player.GetPlayRange();
-                    EditorGUILayout.LabelField("Play Range Time:", $"{range.MinTime} - {range.MaxTime}");
-                    EditorGUILayout.LabelField("Assigned Bones:", player.GetAssignedBonesCount().ToString());
-                }
-
-                CraTransition[] transitions = StateTransitions[si];
-                if (transitions.Length == 0)
-                {
-                    EditorGUILayout.LabelField("No Transitions");
-                }
-                else
-                {
-                    for (int ti = 0; ti < transitions.Length; ++ti)
-                    {
-                        CraTransition tran = transitions[ti];
-                        Debug.Assert(tran.IsValid());
-
-                        CraTransitionData data = tran.GetData();
-
-                        EditorGUILayout.LabelField("Target State:", data.Target.GetName());
-                        EditorGUILayout.LabelField("Transition Time:", $"{data.TransitionTime}");
-                        EditorGUILayout.LabelField("Conditions:");
-
-                        DrawConditions(data.Or0);
-                        DrawConditions(data.Or1);
-                        DrawConditions(data.Or2);
-                        DrawConditions(data.Or3);
-                    }
-                }
-            }
-        }
-
-        EditorGUILayout.Space();
-        EditorGUILayout.Space();
-        EditorGUILayout.Space();
-
-        ShowPlayer = EditorGUILayout.Foldout(ShowPlayer, "Playback", true);
-        if (ShowPlayer)
-        {
-            if (!active.IsValid())
-            {
-                EditorGUILayout.LabelField("No active state in selected layer");
-            }
-            else
-            {
-                CraPlayer player = active.GetPlayer();
-                if (player.IsValid())
-                {
-                    EditorGUILayout.LabelField("Playback Speed");
-                    player.SetPlaybackSpeed(EditorGUILayout.Slider(player.GetPlaybackSpeed(), 0f, 10f));
-
-                    EditorGUILayout.Space();
-                    EditorGUILayout.LabelField("Looping");
-                    player.SetLooping(EditorGUILayout.Toggle(player.IsLooping()));
-
-                    EditorGUILayout.Space();
-                    if (GUILayout.Button(player.IsPlaying() ? "Stop" : "Play"))
-                    {
-                        if (player.IsPlaying())
-                        {
-                            player.Reset();
-                        }
-                        else
-                        {
-                            player.CaptureBones();
-                            player.Play();
-                        }
-                    }
-
-                    EditorGUILayout.Space();
-                    EditorGUILayout.Slider(player.GetTime(), 0f, player.GetClip().GetDuration());
-                    if (GUILayout.Button("Capture Bones"))
-                    {
-                        player.CaptureBones();
-                    }
-                }
-            }
-        }
-        EditorGUILayout.EndVertical();
-
-        EditorGUILayout.EndHorizontal();
-        EditorGUILayout.EndScrollView();
     }
 
     int NumConditions(in CraConditionOr or)

@@ -15,6 +15,10 @@ public unsafe partial class CraMain
         Dictionary<CraHandle, CraHandle> StateToLayer;
         Dictionary<CraHandle, string> StateNames;
         Dictionary<CraHandle, string> ValueNames;
+
+        // Since triggers are set and reset within the SAME frame,
+        // there's no other way for the Monitor to display their action.
+        public Queue<CraHandle> ChangedValues;
 #endif
 
         CraBuffer<CraStateMachineData> StateMachines;
@@ -30,6 +34,8 @@ public unsafe partial class CraMain
             StateToLayer = new Dictionary<CraHandle, CraHandle>();
             StateNames = new Dictionary<CraHandle, string>();
             ValueNames = new Dictionary<CraHandle, string>();
+
+            ChangedValues = new Queue<CraHandle>();
 #endif
             StateMachines = new CraBuffer<CraStateMachineData>(Instance.Settings.Transitions);
             MachineValues = new CraBuffer<CraValueUnion>(Instance.Settings.MachineValues);
@@ -74,7 +80,7 @@ public unsafe partial class CraMain
                     if (machine.ActiveState[i] >= 0)
                     {
                         CraStateData data = States.Get(machine.ActiveState[i]);
-                        CraPlaybackManager.Player_Play(Instance.PlayerData.GetMemoryBuffer(), data.Player);
+                        CraPlaybackManager.Player_SetPlay(Instance.PlayerData.GetMemoryBuffer(), data.Player, CraPlayMode.Play, 0f);
                     }
                 }
             }
@@ -181,8 +187,14 @@ public unsafe partial class CraMain
             Debug.Assert(valueHandle.IsValid());
             var input = MachineValues.Get(valueHandle.Index);
             Debug.Assert(input.Type == CraValueType.Int);
-            input.ValueInt = value;
-            MachineValues.Set(valueHandle.Index, input);
+            if (input.ValueInt != value)
+            {
+                input.ValueInt = value;
+                MachineValues.Set(valueHandle.Index, input);
+#if UNITY_EDITOR
+                ChangedValues.Enqueue(valueHandle);
+#endif
+            }
         }
 
         public void MachineValue_SetValueFloat(CraHandle valueHandle, float value)
@@ -190,8 +202,14 @@ public unsafe partial class CraMain
             Debug.Assert(valueHandle.IsValid());
             var input = MachineValues.Get(valueHandle.Index);
             Debug.Assert(input.Type == CraValueType.Float);
-            input.ValueFloat = value;
-            MachineValues.Set(valueHandle.Index, input);
+            if (input.ValueFloat != value)
+            {
+                input.ValueFloat = value;
+                MachineValues.Set(valueHandle.Index, input);
+#if UNITY_EDITOR
+                ChangedValues.Enqueue(valueHandle);
+#endif
+            }
         }
 
         public void MachineValue_SetValueBool(CraHandle valueHandle, bool value)
@@ -199,8 +217,14 @@ public unsafe partial class CraMain
             Debug.Assert(valueHandle.IsValid());
             var input = MachineValues.Get(valueHandle.Index);
             Debug.Assert(input.Type == CraValueType.Bool);
-            input.ValueBool = value;
-            MachineValues.Set(valueHandle.Index, input);
+            if (input.ValueBool != value)
+            {
+                input.ValueBool = value;
+                MachineValues.Set(valueHandle.Index, input);
+#if UNITY_EDITOR
+                ChangedValues.Enqueue(valueHandle);
+#endif
+            }
         }
 
         public void MachineValue_SetValueTrigger(CraHandle valueHandle, bool value)
@@ -208,8 +232,14 @@ public unsafe partial class CraMain
             Debug.Assert(valueHandle.IsValid());
             var input = MachineValues.Get(valueHandle.Index);
             Debug.Assert(input.Type == CraValueType.Trigger);
-            input.ValueBool = value;
-            MachineValues.Set(valueHandle.Index, input);
+            if (input.ValueBool != value)
+            {
+                input.ValueBool = value;
+                MachineValues.Set(valueHandle.Index, input);
+#if UNITY_EDITOR
+                ChangedValues.Enqueue(valueHandle);
+#endif
+            }
         }
 
         public CraHandle Layer_New(CraHandle stateMachine)
@@ -276,7 +306,7 @@ public unsafe partial class CraMain
             var state = States.Get(newActiveState.Index);
             if (state.Player.IsValid())
             {
-                Instance.Players.Player_Play(state.Player, transitionTime);
+                Instance.Players.Player_SetPlay(state.Player, CraPlayMode.Play, transitionTime);
             }
 
             CraWrite* write = &state.WriteValueEnter0;
@@ -580,12 +610,22 @@ public unsafe partial class CraMain
             for (int i = 0; i < MachineValues.GetNumAllocated(); ++i)
             {
                 var data = MachineValues.Get(i);
-                if (data.Type == CraValueType.Trigger)
+                if (data.Type == CraValueType.Trigger && data.ValueBool)
                 {
                     data.ValueBool = false;
+#if UNITY_EDITOR
+                    ChangedValues.Enqueue(new CraHandle(i));
+#endif
                 }
                 MachineValues.Set(i, data);
             }
+
+#if UNITY_EDITOR
+            while (ChangedValues.Count > 1000)
+            {
+                ChangedValues.Dequeue();
+            }
+#endif
         }
 
         public void Clear()
@@ -818,7 +858,7 @@ public unsafe partial class CraMain
                                 pd.Playback = Players[syncState.Player.Index].Playback;
                                 Players[newState.Player.Index] = pd;
                             }
-                            CraPlaybackManager.Player_Play(Players, newState.Player, tran.TransitionTime);
+                            CraPlaybackManager.Player_SetPlay(Players, newState.Player, CraPlayMode.Play, tran.TransitionTime);
                         }
 
                         write = &newState.WriteValueEnter0;
