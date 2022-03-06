@@ -50,14 +50,6 @@ public struct CraTransform
     //}
 }
 
-public struct CraMeasure
-{
-    public int CurrentElements;
-    public int MaxElements;
-    public ulong CurrentBytes;
-    public ulong MaxBytes;
-}
-
 public struct CraKey : IComparable
 {
     public float Time;
@@ -364,6 +356,14 @@ public class CraBuffer<T> where T : struct
 }
 
 #if UNITY_EDITOR
+public struct CraMeasure
+{
+    public int CurrentElements;
+    public int MaxElements;
+    public ulong CurrentBytes;
+    public ulong MaxBytes;
+}
+
 public class CraStatistics
 {
     public CraMeasure PlayerData;
@@ -437,16 +437,19 @@ public struct CraClip
 
     public float GetDuration()
     {
+        Debug.Assert(IsValid());
         return CraMain.Instance.Players.Clip_GetDuration(Handle);
     }
 
     public int GetFrameCount()
     {
+        Debug.Assert(IsValid());
         return CraMain.Instance.Players.Clip_GetFrameCount(Handle);
     }
 
     public float GetFPS()
     {
+        Debug.Assert(IsValid());
         return CraMain.Instance.Players.Clip_GetFPS(Handle);
     }
 
@@ -628,11 +631,13 @@ public struct CraState
 
     public CraTransition NewTransition(in CraTransitionData transition)
     {
+        Debug.Assert(IsValid());
         return new CraTransition(CraMain.Instance.StateMachines.Transition_New(Handle, in transition));
     }
 
     public CraTransition[] GetTransitions()
     {
+        Debug.Assert(IsValid());
         CraHandle[] handles = CraMain.Instance.StateMachines.State_GetTransitions(Handle);
         CraTransition[] transitions = new CraTransition[handles.Length];
         for (int i = 0; i < handles.Length; ++i)
@@ -644,21 +649,31 @@ public struct CraState
 
     public void SetSyncState(CraState syncState)
     {
+        Debug.Assert(IsValid());
         CraMain.Instance.StateMachines.State_SetSyncState(Handle, syncState.Handle);
+    }
+
+    public CraState GetSyncState()
+    {
+        Debug.Assert(IsValid());
+        return new CraState(CraMain.Instance.StateMachines.State_GetSyncState(Handle));
     }
 
     public void WriteOnEnter(CraWriteOutput write)
     {
+        Debug.Assert(IsValid());
         CraMain.Instance.StateMachines.State_WriteOutputOnEnter(Handle, write.MachineValue.Handle, write.Value);
     }
 
     public void WriteOnLeave(CraWriteOutput write)
     {
+        Debug.Assert(IsValid());
         CraMain.Instance.StateMachines.State_WriteOutputOnLeave(Handle, write.MachineValue.Handle, write.Value);
     }
 
     public CraPlayer GetPlayer()
     {
+        Debug.Assert(IsValid());
         return new CraPlayer(CraMain.Instance.StateMachines.State_GetPlayer(Handle));
     }
 
@@ -675,10 +690,12 @@ public struct CraState
 #if UNITY_EDITOR
     public void SetName(string name)
     {
+        Debug.Assert(IsValid());
         CraMain.Instance.StateMachines.SetStateName(Handle, name);
     }
     public string GetName()
     {
+        Debug.Assert(IsValid());
         string name = CraMain.Instance.StateMachines.GetStateName(Handle);
         if (string.IsNullOrEmpty(name))
         {
@@ -719,47 +736,56 @@ public struct CraMachineValue
 
     public CraValueUnion GetValue()
     {
+        Debug.Assert(IsValid());
         return CraMain.Instance.StateMachines.MachineValue_GetValue(Handle);
     }
 
     public int GetInt()
     {
+        Debug.Assert(IsValid());
         return CraMain.Instance.StateMachines.MachineValue_GetValueInt(Handle);
     }
 
     public float GetFloat()
     {
+        Debug.Assert(IsValid());
         return CraMain.Instance.StateMachines.MachineValue_GetValueFloat(Handle);
     }
 
     public bool GetBool()
     {
+        Debug.Assert(IsValid());
         return CraMain.Instance.StateMachines.MachineValue_GetValueBool(Handle);
     }
 
     public void SetInt(int value)
     {
+        Debug.Assert(IsValid());
         CraMain.Instance.StateMachines.MachineValue_SetValueInt(Handle, value);
     }
 
     public void SetFloat(float value)
     {
+        Debug.Assert(IsValid());
         CraMain.Instance.StateMachines.MachineValue_SetValueFloat(Handle, value);
     }
 
     public void SetBool(bool value)
     {
+        Debug.Assert(IsValid());
         CraMain.Instance.StateMachines.MachineValue_SetValueBool(Handle, value);
     }
 
     public void SetTrigger(bool value)
     {
+        Debug.Assert(IsValid());
         CraMain.Instance.StateMachines.MachineValue_SetValueTrigger(Handle, value);
     }
 
 #if UNITY_EDITOR
     public string GetName()
     {
+        Debug.Assert(IsValid());
         string name = CraMain.Instance.StateMachines.GetMachineValueName(Handle);
         if (string.IsNullOrEmpty(name))
         {
@@ -786,6 +812,7 @@ public struct CraTransition
 
     public CraTransitionData GetData()
     {
+        Debug.Assert(IsValid());
         return CraMain.Instance.StateMachines.Transition_GetData(Handle);
     }
 }
@@ -819,16 +846,21 @@ public struct CraLayer
 
     public CraState NewState(CraPlayer player)
     {
+        Debug.Assert(IsValid());
+        Debug.Assert(Owner.IsValid());
         return CraState.CreateNew(player, Owner, this);
     }
 
     public CraState GetActiveState()
     {
+        Debug.Assert(IsValid());
+        Debug.Assert(Owner.IsValid());
         return new CraState(CraMain.Instance.StateMachines.Layer_GetActiveState(Owner.Handle, Handle));
     }
 
     public void SetActiveState(CraState state, float transitionTime= 0f)
     {
+        Debug.Assert(IsValid());
         Debug.Assert(Owner.IsValid());
         CraMain.Instance.StateMachines.Layer_SetActiveState(Owner.Handle, Handle, state.Handle, transitionTime);
     }
@@ -866,23 +898,27 @@ public struct CraStateMachine
 
     public void SetActive(bool active)
     {
+        Debug.Assert(IsValid());
         CraMain.Instance.StateMachines.StateMachine_SetActive(Handle, active);
     }
 
 
     public CraLayer NewLayer()
     {
+        Debug.Assert(IsValid());
         return CraLayer.CreateNew(this);
     }
 
     public CraMachineValue NewMachineValue(CraValueType type, string name=null)
     {
+        Debug.Assert(IsValid());
         return CraMachineValue.CreateNew(this, type, name);
     }
 
     // CAUTION: CraLayer handles are local to the current state machine!
     public CraLayer[] GetLayers()
     {
+        Debug.Assert(IsValid());
         CraHandle[] handles = CraMain.Instance.StateMachines.StateMachine_GetLayers(Handle);
         CraLayer[] layers = new CraLayer[handles.Length];
         for (int i = 0; i < handles.Length; ++i)
@@ -894,6 +930,7 @@ public struct CraStateMachine
 
     public CraMachineValue[] GetMachineValues()
     {
+        Debug.Assert(IsValid());
         CraHandle[] handles = CraMain.Instance.StateMachines.StateMachine_GetValues(Handle);
         CraMachineValue[] inputs = new CraMachineValue[handles.Length];
         for (int i = 0; i < handles.Length; ++i)
