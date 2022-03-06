@@ -90,12 +90,21 @@ public class CraStateMachineTreeView : TreeView
                 { 
                     Type = CraStateMachineTreeItemType.State, 
                     id = idCounter++, 
-                    displayName =  state.GetName(),
+                    displayName = $"[{state.Handle.Index}] {state.GetName()}",
 
                     Layer = layers[li],
                     State = state
                 };
                 layerItem.AddChild(stateItem);
+
+                CraState syncState = state.GetSyncState();
+                CraStateMachineTreeItem syncStateItem = new CraStateMachineTreeItem
+                {
+                    id = idCounter++,
+                    displayName = "Sync To",
+                    Value = syncState.IsValid() ? $"[{syncState.Handle.Index}] {syncState.GetName()}" : "NO STATE"
+                };
+                stateItem.AddChild(syncStateItem);
 
                 CraTransition[] transitions = state.GetTransitions();
                 for (int ti = 0; ti < transitions.Length; ++ti)
@@ -105,7 +114,7 @@ public class CraStateMachineTreeView : TreeView
                     {
                         id = idCounter++,
                         displayName = $"Transition {ti}",
-                        Value = data.Target.IsValid() ? data.Target.GetName() : "NO TARGET"
+                        Value = data.Target.IsValid() ? $"[{data.Target.Handle.Index}] {data.Target.GetName()}" : "NO TARGET"
                     };
 
                     ExpandRecursiveItems.Add(transitionItem.id);
@@ -346,7 +355,6 @@ enum CraStateMachineTreeItemType
 class CraStateMachineTreeItem : TreeViewItem
 {
     public CraStateMachineTreeItemType Type;
-
     public CraLayer Layer;
     public CraState State;
 

@@ -330,6 +330,7 @@ public unsafe partial class CraMain
             var state = States.Get(h.Index);
             state.Player = player;
             state.PlaybackSpeedInput = CraHandle.Invalid;
+            state.SyncToState = CraHandle.Invalid;
             States.Set(h.Index, state);
 #if UNITY_EDITOR
             StateMachineLayerStates[stateMachine][layerHandle.Index].Add(h);
@@ -455,6 +456,14 @@ public unsafe partial class CraMain
             var state = States.Get(stateHandle.Index);
             state.SyncToState = syncStateHandle;
             States.Set(stateHandle.Index, state);
+        }
+
+        public CraHandle State_GetSyncState(CraHandle stateHandle)
+        {
+            Debug.Assert(stateHandle.IsValid());
+
+            var state = States.Get(stateHandle.Index);
+            return state.SyncToState;
         }
 
         public CraHandle Transition_New(CraHandle stateHandle, in CraTransitionData transition)
@@ -796,7 +805,7 @@ public unsafe partial class CraMain
 
             //Debug.Log($"Executing state machine {index}!");
 
-            // Maybe also parallelize layers
+            // TODO: Maybe also parallelize layers
             for (int li = 0; li < machine.LayerCount; ++li)
             {
                 var stateIdx = machine.ActiveState[li];
@@ -869,6 +878,9 @@ public unsafe partial class CraMain
                                 MachineValues[write[wi].MachineValue.Index] = write[wi].Value;
                             }
                         }
+
+                        // Stop previous state AFTER SyncToState is applied
+                        CraPlaybackManager.Player_Reset(Players, state.Player);
 
                         // No need to check for further transitions
                         break;
