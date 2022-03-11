@@ -30,7 +30,7 @@ public class CraMainComponent : MonoBehaviour
 
     void Update()
     {
-        Cra.Tick();
+        Cra.Tick(Time.deltaTime);
     }
 
     void OnDestroy()
