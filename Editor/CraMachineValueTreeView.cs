@@ -151,8 +151,12 @@ public class CraMachineValueTreeView : TreeView
                         valueString = $"{value.ValueFloat:n2}";
                         break;
                     case CraValueType.Bool:
-                    case CraValueType.Trigger:
                         valueString = $"{value.ValueBool}";
+                        break;
+                    case CraValueType.Trigger:
+                        float lifeTime = item.Value.GetTriggerLifeTime();
+                        float maxLifeTime = item.Value.GetTriggerMaxLifeTime();
+                        valueString = $"{value.ValueBool} ({lifeTime:n2} / {maxLifeTime:n2})";
                         break;
                 }
 

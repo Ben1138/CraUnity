@@ -52,12 +52,12 @@ public unsafe partial class CraMain
 #endif
     }
 
-    public void Tick()
+    public void Tick(float deltaTime)
     {
         lock (Lock)
         {
             JobHandle playerJob = Players.Schedule();
-            StateMachines.Schedule(playerJob);
+            StateMachines.Schedule(deltaTime, playerJob);
         }
 
 #if UNITY_EDITOR

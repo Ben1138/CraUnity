@@ -22,7 +22,7 @@ public unsafe partial class CraMain
 #endif
 
         CraBuffer<CraStateMachineData> StateMachines;
-        CraBuffer<CraValueUnion> MachineValues;
+        CraBuffer<CraValue> MachineValues;
         CraBuffer<CraStateData> States;
         CraBuffer<CraTransitionData> Transitions;
 
@@ -38,7 +38,7 @@ public unsafe partial class CraMain
             ChangedValues = new Queue<CraHandle>();
 #endif
             StateMachines = new CraBuffer<CraStateMachineData>(Instance.Settings.Transitions);
-            MachineValues = new CraBuffer<CraValueUnion>(Instance.Settings.MachineValues);
+            MachineValues = new CraBuffer<CraValue>(Instance.Settings.MachineValues);
             States = new CraBuffer<CraStateData>(Instance.Settings.States);
             Transitions = new CraBuffer<CraTransitionData>(Instance.Settings.Transitions);
         }
@@ -143,7 +143,8 @@ public unsafe partial class CraMain
             }
 
             var input = MachineValues.Get(h.Index);
-            input.Type = type;
+            input.Value.Type = type;
+            input.MaxLifeTime = 0f; // By default, Triggers get immediately reset at frame end
             MachineValues.Set(h.Index, input);
 
             machine.Values[machine.ValuesCount++] = h.Index;
@@ -155,41 +156,41 @@ public unsafe partial class CraMain
         public CraValueUnion MachineValue_GetValue(CraHandle valueHandle)
         {
             Debug.Assert(valueHandle.IsValid());
-            return MachineValues.Get(valueHandle.Index);
+            return MachineValues.Get(valueHandle.Index).Value;
         }
 
         public int MachineValue_GetValueInt(CraHandle valueHandle)
         {
             Debug.Assert(valueHandle.IsValid());
             var output = MachineValues.Get(valueHandle.Index);
-            Debug.Assert(output.Type == CraValueType.Int);
-            return output.ValueInt;
+            Debug.Assert(output.Value.Type == CraValueType.Int);
+            return output.Value.ValueInt;
         }
 
         public float MachineValue_GetValueFloat(CraHandle valueHandle)
         {
             Debug.Assert(valueHandle.IsValid());
             var output = MachineValues.Get(valueHandle.Index);
-            Debug.Assert(output.Type == CraValueType.Float);
-            return output.ValueFloat;
+            Debug.Assert(output.Value.Type == CraValueType.Float);
+            return output.Value.ValueFloat;
         }
 
         public bool MachineValue_GetValueBool(CraHandle valueHandle)
         {
             Debug.Assert(valueHandle.IsValid());
             var output = MachineValues.Get(valueHandle.Index);
-            Debug.Assert(output.Type == CraValueType.Bool);
-            return output.ValueBool;
+            Debug.Assert(output.Value.Type == CraValueType.Bool);
+            return output.Value.ValueBool;
         }
 
         public void MachineValue_SetValueInt(CraHandle valueHandle, int value)
         {
             Debug.Assert(valueHandle.IsValid());
             var input = MachineValues.Get(valueHandle.Index);
-            Debug.Assert(input.Type == CraValueType.Int);
-            if (input.ValueInt != value)
+            Debug.Assert(input.Value.Type == CraValueType.Int);
+            if (input.Value.ValueInt != value)
             {
-                input.ValueInt = value;
+                input.Value.ValueInt = value;
                 MachineValues.Set(valueHandle.Index, input);
 #if UNITY_EDITOR
                 ChangedValues.Enqueue(valueHandle);
@@ -201,10 +202,10 @@ public unsafe partial class CraMain
         {
             Debug.Assert(valueHandle.IsValid());
             var input = MachineValues.Get(valueHandle.Index);
-            Debug.Assert(input.Type == CraValueType.Float);
-            if (input.ValueFloat != value)
+            Debug.Assert(input.Value.Type == CraValueType.Float);
+            if (input.Value.ValueFloat != value)
             {
-                input.ValueFloat = value;
+                input.Value.ValueFloat = value;
                 MachineValues.Set(valueHandle.Index, input);
 #if UNITY_EDITOR
                 ChangedValues.Enqueue(valueHandle);
@@ -216,10 +217,10 @@ public unsafe partial class CraMain
         {
             Debug.Assert(valueHandle.IsValid());
             var input = MachineValues.Get(valueHandle.Index);
-            Debug.Assert(input.Type == CraValueType.Bool);
-            if (input.ValueBool != value)
+            Debug.Assert(input.Value.Type == CraValueType.Bool);
+            if (input.Value.ValueBool != value)
             {
-                input.ValueBool = value;
+                input.Value.ValueBool = value;
                 MachineValues.Set(valueHandle.Index, input);
 #if UNITY_EDITOR
                 ChangedValues.Enqueue(valueHandle);
@@ -231,15 +232,40 @@ public unsafe partial class CraMain
         {
             Debug.Assert(valueHandle.IsValid());
             var input = MachineValues.Get(valueHandle.Index);
-            Debug.Assert(input.Type == CraValueType.Trigger);
-            if (input.ValueBool != value)
+            Debug.Assert(input.Value.Type == CraValueType.Trigger);
+            if (!input.Value.ValueBool && value)
             {
-                input.ValueBool = value;
+                input.Value.ValueBool = value;
                 MachineValues.Set(valueHandle.Index, input);
 #if UNITY_EDITOR
                 ChangedValues.Enqueue(valueHandle);
 #endif
             }
+        }
+
+        public float MachineValue_GetTriggerLifeTime(CraHandle valueHandle)
+        {
+            Debug.Assert(valueHandle.IsValid());
+            var trigger = MachineValues.Get(valueHandle.Index);
+            Debug.Assert(trigger.Value.Type == CraValueType.Trigger);
+            return trigger.LifeTime;
+        }
+
+        public float MachineValue_GetTriggerMaxLifeTime(CraHandle valueHandle)
+        {
+            Debug.Assert(valueHandle.IsValid());
+            var trigger = MachineValues.Get(valueHandle.Index);
+            Debug.Assert(trigger.Value.Type == CraValueType.Trigger);
+            return trigger.MaxLifeTime;
+        }
+
+        public void MachineValue_SetTriggerMaxLifeTime(CraHandle valueHandle, float maxLifeTime)
+        {
+            Debug.Assert(valueHandle.IsValid());
+            var trigger = MachineValues.Get(valueHandle.Index);
+            Debug.Assert(trigger.Value.Type == CraValueType.Trigger);
+            trigger.MaxLifeTime = maxLifeTime;
+            MachineValues.Set(valueHandle.Index, trigger);
         }
 
         public CraHandle Layer_New(CraHandle stateMachine)
@@ -314,7 +340,9 @@ public unsafe partial class CraMain
             {
                 if (write[wi].MachineValue.IsValid())
                 {
-                    MachineValues.Set(write[wi].MachineValue.Index, write[wi].Value);
+                    CraValue v = MachineValues.Get(write[wi].MachineValue.Index);
+                    v.Value = write[wi].Value;
+                    MachineValues.Set(write[wi].MachineValue.Index, v);
                 }
             }
         }
@@ -578,7 +606,7 @@ public unsafe partial class CraMain
             return Transitions.Get(transitionHandle.Index);
         }
 
-        public void Schedule(JobHandle playerJob)
+        public void Schedule(float deltaTime, JobHandle playerJob)
         {
             Instance.MachineJob.Players = Instance.PlayerData.GetMemoryBuffer();
             Instance.MachineJob.StateMachines = StateMachines.GetMemoryBuffer();
@@ -619,14 +647,23 @@ public unsafe partial class CraMain
             for (int i = 0; i < MachineValues.GetNumAllocated(); ++i)
             {
                 var data = MachineValues.Get(i);
-                if (data.Type == CraValueType.Trigger && data.ValueBool)
+                if (data.Value.Type == CraValueType.Trigger && data.Value.ValueBool)
                 {
-                    data.ValueBool = false;
-#if UNITY_EDITOR
-                    ChangedValues.Enqueue(new CraHandle(i));
-#endif
+                    if (data.Consumed > 0 || data.LifeTime >= data.MaxLifeTime)
+                    {
+                        data.Consumed = 0;
+                        data.LifeTime = 0;
+                        data.Value.ValueBool = false;
+    #if UNITY_EDITOR
+                        ChangedValues.Enqueue(new CraHandle(i));
+    #endif 
+                    }
+                    else
+                    {
+                        data.LifeTime += deltaTime;
+                    }
+                    MachineValues.Set(i, data);
                 }
-                MachineValues.Set(i, data);
             }
 
 #if UNITY_EDITOR
@@ -675,6 +712,14 @@ public unsafe partial class CraMain
 
         public fixed int Values[CraSettings.MaxMachineValues];
         public int ValuesCount;
+    }
+
+    struct CraValue
+    {
+        public CraValueUnion Value;
+        public int Consumed;
+        public float LifeTime;
+        public float MaxLifeTime;
     }
 
     struct CraWrite
@@ -789,7 +834,7 @@ public unsafe partial class CraMain
 
         // Read + Write
         [NativeDisableParallelForRestriction]
-        public NativeArray<CraValueUnion> MachineValues;
+        public NativeArray<CraValue> MachineValues;
 
         [ReadOnly]
         public NativeArray<CraStateData> States;
@@ -823,7 +868,7 @@ public unsafe partial class CraMain
                 if (state.PlaybackSpeedInput.IsValid())
                 {
                     var input = MachineValues[state.PlaybackSpeedInput.Index];
-                    CraPlaybackManager.Player_SetPlaybackSpeed(Players, state.Player, input.ValueFloat);
+                    CraPlaybackManager.Player_SetPlaybackSpeed(Players, state.Player, input.Value.ValueFloat);
                 }
 
                 for (int ti = 0; ti < state.TransitionsCount; ++ti)
@@ -852,7 +897,9 @@ public unsafe partial class CraMain
                         {
                             if (write[wi].MachineValue.IsValid())
                             {
-                                MachineValues[write[wi].MachineValue.Index] = write[wi].Value;
+                                CraValue v = MachineValues[write[wi].MachineValue.Index];
+                                v.Value = write[wi].Value;
+                                MachineValues[write[wi].MachineValue.Index] = v;
                             }
                         }
 
@@ -875,7 +922,9 @@ public unsafe partial class CraMain
                         {
                             if (write[wi].MachineValue.IsValid())
                             {
-                                MachineValues[write[wi].MachineValue.Index] = write[wi].Value;
+                                CraValue v = MachineValues[write[wi].MachineValue.Index];
+                                v.Value = write[wi].Value;
+                                MachineValues[write[wi].MachineValue.Index] = v;
                             }
                         }
 
@@ -947,7 +996,7 @@ public unsafe partial class CraMain
                 return false;
             }
 
-            var input = MachineValues[con.Input.Handle.Index];
+            var input = MachineValues[con.Input.Handle.Index].Value;
             int valueInt = con.CompareToAbsolute ? Mathf.Abs(input.ValueInt) : input.ValueInt;
             float valueFloat = con.CompareToAbsolute ? Mathf.Abs(input.ValueFloat) : input.ValueFloat;
 
@@ -986,12 +1035,13 @@ public unsafe partial class CraMain
             else if (con.Type == CraConditionType.Trigger && con.Input.IsValid())
             {
                 conditionMet = input.Type == CraValueType.Trigger && input.ValueBool;
-                //if (conditionMet)
-                //{
-                //    Debug.Log($"Triggered by: {con.Input.GetName()}");
-                //    input.ValueBool = false;
-                //    Inputs[con.Input.Handle.Index] = input;
-                //}
+                if (conditionMet)
+                {
+                    //Debug.Log($"Triggered by: {con.Input.GetName()}");
+                    CraValue v = MachineValues[con.Input.Handle.Index];
+                    v.Consumed++;
+                    MachineValues[con.Input.Handle.Index] = v;
+                }
             }
 
             return conditionMet;

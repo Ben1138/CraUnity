@@ -782,6 +782,24 @@ public struct CraMachineValue
         CraMain.Instance.StateMachines.MachineValue_SetValueTrigger(Handle, value);
     }
 
+    public float GetTriggerLifeTime()
+    {
+        Debug.Assert(IsValid());
+        return CraMain.Instance.StateMachines.MachineValue_GetTriggerLifeTime(Handle);
+    }
+
+    public float GetTriggerMaxLifeTime()
+    {
+        Debug.Assert(IsValid());
+        return CraMain.Instance.StateMachines.MachineValue_GetTriggerMaxLifeTime(Handle);
+    }
+
+    public void SetTriggerMaxLifeTime(float maxLifeTime)
+    {
+        Debug.Assert(IsValid());
+        CraMain.Instance.StateMachines.MachineValue_SetTriggerMaxLifeTime(Handle, maxLifeTime);
+    }
+
 #if UNITY_EDITOR
     public string GetName()
     {
