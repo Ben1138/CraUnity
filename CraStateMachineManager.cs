@@ -984,8 +984,8 @@ public unsafe partial class CraMain
             if (state.Player.IsValid())
             {
                 var player = Players[state.Player.Index];
-                if ((con.Type == CraConditionType.TimeMin && player.Playback >= con.Value.ValueFloat) ||
-                    (con.Type == CraConditionType.TimeMax && player.Playback <= con.Value.ValueFloat))
+                if ((con.Type == CraConditionType.TimeMin && player.Playback >= con.Compare.ValueFloat) ||
+                    (con.Type == CraConditionType.TimeMax && player.Playback <= con.Compare.ValueFloat))
                 {
                     return true;
                 }
@@ -1004,33 +1004,33 @@ public unsafe partial class CraMain
             if (con.Type == CraConditionType.Equal && con.Input.IsValid())
             {
                 conditionMet =
-                    (input.Type == CraValueType.Int && valueInt == con.Value.ValueInt) ||
-                    (input.Type == CraValueType.Float && valueFloat == con.Value.ValueFloat) ||
-                    (input.Type == CraValueType.Bool && input.ValueBool == con.Value.ValueBool);
+                    (input.Type == CraValueType.Int && valueInt == con.Compare.ValueInt) ||
+                    (input.Type == CraValueType.Float && valueFloat == con.Compare.ValueFloat) ||
+                    (input.Type == CraValueType.Bool && input.ValueBool == con.Compare.ValueBool);
             }
             else if (con.Type == CraConditionType.Greater && con.Input.IsValid())
             {
                 conditionMet =
-                    (input.Type == CraValueType.Int && valueInt > con.Value.ValueInt) ||
-                    (input.Type == CraValueType.Float && valueFloat > con.Value.ValueFloat);
+                    (input.Type == CraValueType.Int && valueInt > con.Compare.ValueInt) ||
+                    (input.Type == CraValueType.Float && valueFloat > con.Compare.ValueFloat);
             }
             else if (con.Type == CraConditionType.GreaterOrEqual && con.Input.IsValid())
             {
                 conditionMet =
-                    (input.Type == CraValueType.Int && valueInt >= con.Value.ValueInt) ||
-                    (input.Type == CraValueType.Float && valueFloat >= con.Value.ValueFloat);
+                    (input.Type == CraValueType.Int && valueInt >= con.Compare.ValueInt) ||
+                    (input.Type == CraValueType.Float && valueFloat >= con.Compare.ValueFloat);
             }
             else if (con.Type == CraConditionType.Less && con.Input.IsValid())
             {
                 conditionMet =
-                    (input.Type == CraValueType.Int && valueInt < con.Value.ValueInt) ||
-                    (input.Type == CraValueType.Float && valueFloat < con.Value.ValueFloat);
+                    (input.Type == CraValueType.Int && valueInt < con.Compare.ValueInt) ||
+                    (input.Type == CraValueType.Float && valueFloat < con.Compare.ValueFloat);
             }
             else if (con.Type == CraConditionType.LessOrEqual && con.Input.IsValid())
             {
                 conditionMet =
-                    (input.Type == CraValueType.Int && valueInt <= con.Value.ValueInt) ||
-                    (input.Type == CraValueType.Float && valueFloat <= con.Value.ValueFloat);
+                    (input.Type == CraValueType.Int && valueInt <= con.Compare.ValueInt) ||
+                    (input.Type == CraValueType.Float && valueFloat <= con.Compare.ValueFloat);
             }
             else if (con.Type == CraConditionType.Trigger && con.Input.IsValid())
             {
