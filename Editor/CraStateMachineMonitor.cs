@@ -125,16 +125,16 @@ public class CraStateMachineMonitor : EditorWindow
         EditorGUILayout.LabelField("          Condition:", $"{con.Type}");
         if (con.Type != CraConditionType.IsFinished)
         {
-            switch (con.Value.Type)
+            switch (con.Compare.Type)
             {
                 case CraValueType.Int:
-                    EditorGUILayout.LabelField("          Value:", $"{con.Value.ValueInt} (int)");
+                    EditorGUILayout.LabelField("          Value:", $"{con.Compare.ValueInt} (int)");
                     break;
                 case CraValueType.Float:
-                    EditorGUILayout.LabelField("          Value:", $"{con.Value.ValueFloat} (float)");
+                    EditorGUILayout.LabelField("          Value:", $"{con.Compare.ValueFloat} (float)");
                     break;
                 case CraValueType.Bool:
-                    EditorGUILayout.LabelField("          Value:", $"{con.Value.ValueBool} (bool)");
+                    EditorGUILayout.LabelField("          Value:", $"{con.Compare.ValueBool} (bool)");
                     break;
                 default:
                     EditorGUILayout.LabelField("          Value:", "UNHANDLED TYPE");

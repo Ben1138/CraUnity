@@ -187,7 +187,7 @@ public struct CraCondition
 {
     public CraConditionType Type;
     public CraMachineValue Input;
-    public CraValueUnion Value;
+    public CraValueUnion Compare;
     public bool CompareToAbsolute;
 }
 
@@ -407,7 +407,7 @@ public struct CraSettings
 
     public const int MaxTransitions = 20;
     public const int MaxLayers = 2;
-    public const int MaxMachineValues = 64;
+    public const int MaxMachineValues = 128;
 
     public Func<string, int> BoneHashFunction;
 }

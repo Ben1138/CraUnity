@@ -145,12 +145,12 @@ public class CraStateMachineTreeView : TreeView
                                 }
                                 case CraConditionType.TimeMin:
                                 {
-                                    conditionStr = $"State Time > {and.Value.ValueFloat:n2}";
+                                    conditionStr = $"State Time > {and.Compare.ValueFloat:n2}";
                                     break;
                                 }
                                 case CraConditionType.TimeMax:
                                 {
-                                    conditionStr = $"State Time < {and.Value.ValueFloat:n2}";
+                                    conditionStr = $"State Time < {and.Compare.ValueFloat:n2}";
                                     break;
                                 }
                                 case CraConditionType.IsFinished:
@@ -161,21 +161,21 @@ public class CraStateMachineTreeView : TreeView
                                 default:
                                 {
                                     string inputValue;
-                                    switch (and.Value.Type)
+                                    switch (and.Compare.Type)
                                     {
                                         case CraValueType.Int:
                                         {
-                                            inputValue = and.Value.ValueInt.ToString();
+                                            inputValue = and.Compare.ValueInt.ToString();
                                             break;
                                         }
                                         case CraValueType.Float:
                                         {
-                                            inputValue = $"{and.Value.ValueFloat:n2}";
+                                            inputValue = $"{and.Compare.ValueFloat:n2}";
                                             break;
                                         }
                                         case CraValueType.Bool:
                                         {
-                                            inputValue = and.Value.ValueBool.ToString();
+                                            inputValue = and.Compare.ValueBool.ToString();
                                             break;
                                         }
                                         default:
