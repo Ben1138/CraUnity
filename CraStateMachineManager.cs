@@ -1032,6 +1032,16 @@ public unsafe partial class CraMain
                     (input.Type == CraValueType.Int && valueInt <= con.Compare.ValueInt) ||
                     (input.Type == CraValueType.Float && valueFloat <= con.Compare.ValueFloat);
             }
+            else if (con.Type == CraConditionType.Flag && con.Input.IsValid())
+            {
+                conditionMet =
+                    (input.Type == CraValueType.Int && (valueInt & con.Compare.ValueInt) != 0);
+            }
+            else if (con.Type == CraConditionType.Flags && con.Input.IsValid())
+            {
+                conditionMet =
+                    (input.Type == CraValueType.Int && (valueInt & con.Compare.ValueInt) == con.Compare.ValueInt);
+            }
             else if (con.Type == CraConditionType.Trigger && con.Input.IsValid())
             {
                 conditionMet = input.Type == CraValueType.Trigger && input.ValueBool;

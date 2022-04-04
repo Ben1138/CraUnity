@@ -12,15 +12,17 @@ public class CraStateMachineTreeView : TreeView
 
     static readonly Dictionary<CraConditionType, string> ConditionSymbols = new Dictionary<CraConditionType, string>
     {
-        { CraConditionType.None,           "NONE" },
-        { CraConditionType.Equal,          "==" },
-        { CraConditionType.Greater,        ">" },
-        { CraConditionType.Less,           "<" },
-        { CraConditionType.GreaterOrEqual, ">=" },
-        { CraConditionType.LessOrEqual,    "<=" },
-        { CraConditionType.Trigger,        "Trigger" },
-        { CraConditionType.TimeMin,        "Time >" },
-        { CraConditionType.TimeMax,        "Time <" },
+        { CraConditionType.None,           "NONE"     },
+        { CraConditionType.Equal,          "=="       },
+        { CraConditionType.Greater,        ">"        },
+        { CraConditionType.Less,           "<"        },
+        { CraConditionType.GreaterOrEqual, ">="       },
+        { CraConditionType.LessOrEqual,    "<="       },
+        { CraConditionType.Flag,           "Flag"     },
+        { CraConditionType.Flags,          "Flags"    },
+        { CraConditionType.Trigger,        "Trigger"  },
+        { CraConditionType.TimeMin,        "Time >"   },
+        { CraConditionType.TimeMax,        "Time <"   },
         { CraConditionType.IsFinished,     "Finished" },
     };
 
