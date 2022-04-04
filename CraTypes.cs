@@ -138,6 +138,8 @@ public enum CraConditionType
     Less,
     GreaterOrEqual,
     LessOrEqual,
+    Flag,           // Value must contain at least one of the flags
+    Flags,          // Value must contain all flags
     Trigger,
 
     // State conditions
