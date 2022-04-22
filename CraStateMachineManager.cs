@@ -903,7 +903,8 @@ public unsafe partial class CraMain
                             }
                         }
 
-                        CraStateData newState = States[machine.ActiveState[li]];
+                        int newStateIdx = machine.ActiveState[li];
+                        CraStateData newState = States[newStateIdx];
                         if (newState.Player.IsValid())
                         {
                             CraPlaybackManager.Player_Reset(Players, newState.Player);
