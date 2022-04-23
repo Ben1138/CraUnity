@@ -116,7 +116,7 @@ public class CraStateMachineTreeView : TreeView
                     {
                         id = idCounter++,
                         displayName = $"Transition {ti}",
-                        Value = data.Target.IsValid() ? $"[{data.Target.Handle.Index}] {data.Target.GetName()}" : "NO TARGET"
+                        Value = data.Target.IsValid() ? $"[{data.Target.Handle.Index}] {data.Target.GetName()}" : "NO TARGET",
                     };
 
                     ExpandRecursiveItems.Add(transitionItem.id);
@@ -195,7 +195,8 @@ public class CraStateMachineTreeView : TreeView
                             {
                                 id = idCounter++,
                                 displayName = $"And {ai}",
-                                Value = conditionStr
+                                Value = conditionStr,
+                                Condition = and
                             };
 
                             andItems.Add(andItem);
@@ -246,7 +247,10 @@ public class CraStateMachineTreeView : TreeView
 
         Color tmp1 = GUI.backgroundColor;
         Color tmp2 = GUI.contentColor;
-        bool isActive = item.State.IsValid() && item.Layer.GetActiveState() == item.State;
+        bool isActive =
+            (item.State.IsValid() && item.Layer.GetActiveState() == item.State) ||
+            (item.Condition.Type != CraConditionType.None && item.Condition.ConditionMet);
+
         if (isActive)
         {
             GUI.backgroundColor = Color.green;
@@ -359,6 +363,7 @@ class CraStateMachineTreeItem : TreeViewItem
     public CraStateMachineTreeItemType Type;
     public CraLayer Layer;
     public CraState State;
+    public CraCondition Condition;
 
     public string Value;
 }

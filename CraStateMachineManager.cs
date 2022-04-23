@@ -497,7 +497,6 @@ public unsafe partial class CraMain
         public CraHandle Transition_New(CraHandle stateHandle, in CraTransitionData transition)
         {
             Debug.Assert(transition.Target.IsValid());
-
 #if UNITY_EDITOR
             {
                 CraHandle stateMachine = StateToMachine[stateHandle];
@@ -515,7 +514,6 @@ public unsafe partial class CraMain
                 }
             }
 #endif
-
             var state = States.Get(stateHandle.Index);
             if (state.TransitionsCount >= CraSettings.MaxTransitions)
             {
@@ -873,19 +871,19 @@ public unsafe partial class CraMain
 
                 for (int ti = 0; ti < state.TransitionsCount; ++ti)
                 {
-                    var tranIdx = state.Transitions[ti];
+                    int tranIdx = state.Transitions[ti];
                     var tran = Transitions[tranIdx];
                     bool transit =
-                        CheckCondition(tran.Or0, state) ||
-                        CheckCondition(tran.Or1, state) ||
-                        CheckCondition(tran.Or2, state) ||
-                        CheckCondition(tran.Or3, state) ||
-                        CheckCondition(tran.Or4, state) ||
-                        CheckCondition(tran.Or5, state) ||
-                        CheckCondition(tran.Or6, state) ||
-                        CheckCondition(tran.Or7, state) ||
-                        CheckCondition(tran.Or8, state) ||
-                        CheckCondition(tran.Or9, state);
+                        CheckCondition(ref tran.Or0, state) ||
+                        CheckCondition(ref tran.Or1, state) ||
+                        CheckCondition(ref tran.Or2, state) ||
+                        CheckCondition(ref tran.Or3, state) ||
+                        CheckCondition(ref tran.Or4, state) ||
+                        CheckCondition(ref tran.Or5, state) ||
+                        CheckCondition(ref tran.Or6, state) ||
+                        CheckCondition(ref tran.Or7, state) ||
+                        CheckCondition(ref tran.Or8, state) ||
+                        CheckCondition(ref tran.Or9, state);
 
                     if (transit)
                     {
@@ -915,6 +913,24 @@ public unsafe partial class CraMain
                                 pd.Playback = Players[syncState.Player.Index].Playback;
                                 Players[newState.Player.Index] = pd;
                             }
+
+                            // Reset all Transition Conditions
+                            for (int nti = 0; nti < newState.TransitionsCount; nti++)
+                            {
+                                int newTranIdx = newState.Transitions[nti];
+                                var newTran = Transitions[newTranIdx];
+
+                                CraConditionOr* ors = &newTran.Or0;
+                                for (int oi = 0; oi < 10; ++oi)
+                                {
+                                    CraCondition* ands = &ors[oi].And0;
+                                    for (int ai = 0; ai < 10; ++ai)
+                                    {
+                                        ands[ai].ConditionMet = false;
+                                    }
+                                }
+                            }
+
                             CraPlaybackManager.Player_SetPlay(Players, newState.Player, CraPlayMode.Play, tran.TransitionTime);
                         }
 
@@ -956,25 +972,34 @@ public unsafe partial class CraMain
                 or.And9.Type != CraConditionType.None;
         }
 
-        bool CheckCondition(in CraConditionOr or, in CraStateData state)
+        bool CheckCondition(ref CraConditionOr or, in CraStateData state)
         {
+            float checkEndTime = 999999f;
+            if (or.CheckTimeMax > 0f)
+            {
+                checkEndTime = or.CheckTimeMax;
+            }
+
+            CraPlayerData player = Players[state.Player.Index];
             return
                 HasAtLeastOneCondition(or) &&
-                CheckCondition(or.And0, state) &&
-                CheckCondition(or.And1, state) &&
-                CheckCondition(or.And2, state) &&
-                CheckCondition(or.And3, state) &&
-                CheckCondition(or.And4, state) &&
-                CheckCondition(or.And5, state) &&
-                CheckCondition(or.And6, state) &&
-                CheckCondition(or.And7, state) &&
-                CheckCondition(or.And8, state) &&
-                CheckCondition(or.And9, state);
+                CheckCondition(ref or.And0, state) &&
+                CheckCondition(ref or.And1, state) &&
+                CheckCondition(ref or.And2, state) &&
+                CheckCondition(ref or.And3, state) &&
+                CheckCondition(ref or.And4, state) &&
+                CheckCondition(ref or.And5, state) &&
+                CheckCondition(ref or.And6, state) &&
+                CheckCondition(ref or.And7, state) &&
+                CheckCondition(ref or.And8, state) &&
+                CheckCondition(ref or.And9, state) &&
+
+                player.Playback <= checkEndTime;
         }
 
-        bool CheckCondition(in CraCondition con, in CraStateData state)
+        bool CheckCondition(ref CraCondition con, in CraStateData state)
         {
-            if (con.Type == CraConditionType.None)
+            if (con.ConditionMet || con.Type == CraConditionType.None)
             {
                 return true;
             }
@@ -1055,6 +1080,7 @@ public unsafe partial class CraMain
                 }
             }
 
+            con.ConditionMet = conditionMet;
             return conditionMet;
         }
     }
