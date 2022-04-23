@@ -143,8 +143,8 @@ public enum CraConditionType
     Trigger,
 
     // State conditions
-    TimeMin,        // Compare must be greater than Min
-    TimeMax,        // Compare must be smaller than Max
+    TimeMin,        // State Time must be greater than Min
+    TimeMax,        // State Time must be smaller than Max
     IsFinished
 }
 
@@ -192,20 +192,15 @@ public struct CraCondition
     public CraValueUnion Compare;
     public bool CompareToAbsolute;
 
-    // TODO: We need all transitions to be breakable at specific times --> TimeMin / TimeMax
-    // Since we don't want to loose previously met conditions (before TimeMin), we need
-    // to store which ones have already been met successfully!
-    public bool ConditionMet;
+    public bool  ConditionMet;
 }
 
 
 [StructLayout(LayoutKind.Sequential)]
 public struct CraConditionOr
 {
-    // TODO: Time range, where we actually check the conditions
-    // Defaults to entire state duration
-    public float CheckStartTime;
-    public float CheckEndTime;
+    public float CheckTimeMin;    // Before this state time, conditions is always false.
+    public float CheckTimeMax;    // After this state time, condition is always false.     Default value of 0f is interpreted as State Duration
 
     public CraCondition And0;
     public CraCondition And1;
