@@ -126,7 +126,6 @@ public class CraMachineValueTreeView : TreeView
             return;
         }
 
-        CraValueUnion value = item.Value.GetValue();
         switch (column)
         {
             case 0:
@@ -136,31 +135,12 @@ public class CraMachineValueTreeView : TreeView
             }
             case 1:
             {
-                EditorGUI.LabelField(cellRect, value.Type.ToString());
+                EditorGUI.LabelField(cellRect, item.Value.GetValue().Type.ToString());
                 break;
             }
             case 2:
             {
-                string valueString = "UNKNOWN TYPE";
-                switch (value.Type)
-                {
-                    case CraValueType.Int:
-                        valueString = $"{value.ValueInt}";
-                        break;
-                    case CraValueType.Float:
-                        valueString = $"{value.ValueFloat:n2}";
-                        break;
-                    case CraValueType.Bool:
-                        valueString = $"{value.ValueBool}";
-                        break;
-                    case CraValueType.Trigger:
-                        float lifeTime = item.Value.GetTriggerLifeTime();
-                        float maxLifeTime = item.Value.GetTriggerMaxLifeTime();
-                        valueString = $"{value.ValueBool} ({lifeTime:n2} / {maxLifeTime:n2})";
-                        break;
-                }
-
-                EditorGUI.LabelField(cellRect, valueString);
+                EditorGUI.LabelField(cellRect, item.Value.GetFormattedValue());
                 break;
             }
         }
