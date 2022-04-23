@@ -363,6 +363,7 @@ public class CraBuffer<T> where T : struct
 }
 
 #if UNITY_EDITOR
+public delegate string CraFormatMachineValue(CraMachineValue value);
 public struct CraMeasure
 {
     public int CurrentElements;
@@ -719,11 +720,12 @@ public struct CraMachineValue
 
     public static CraMachineValue None => new CraMachineValue { Handle = CraHandle.Invalid };
 
-    public static CraMachineValue CreateNew(CraStateMachine stateMachine, CraValueType type, string name=null)
+    public static CraMachineValue CreateNew(CraStateMachine stateMachine, CraValueType type, string name=null, CraFormatMachineValue formatFunc = null)
     {
         CraHandle h = CraMain.Instance.StateMachines.StateMachine_NewValue(stateMachine.Handle, type);
 #if UNITY_EDITOR
         CraMain.Instance.StateMachines.SetMachineValueName(h, name);
+        CraMain.Instance.StateMachines.SetMachineValueFormatting(h, formatFunc);
 #endif
         return new CraMachineValue
         {
@@ -808,6 +810,11 @@ public struct CraMachineValue
     }
 
 #if UNITY_EDITOR
+    public string GetFormattedValue()
+    {
+        Debug.Assert(IsValid());
+        return CraMain.Instance.StateMachines.GetMachineValueString(Handle);
+    }
     public string GetName()
     {
         Debug.Assert(IsValid());
@@ -934,10 +941,10 @@ public struct CraStateMachine
         return CraLayer.CreateNew(this);
     }
 
-    public CraMachineValue NewMachineValue(CraValueType type, string name=null)
+    public CraMachineValue NewMachineValue(CraValueType type, string name=null, CraFormatMachineValue formatFunc = null)
     {
         Debug.Assert(IsValid());
-        return CraMachineValue.CreateNew(this, type, name);
+        return CraMachineValue.CreateNew(this, type, name, formatFunc);
     }
 
     // CAUTION: CraLayer handles are local to the current state machine!

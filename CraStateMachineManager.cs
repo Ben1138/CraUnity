@@ -15,6 +15,7 @@ public unsafe partial class CraMain
         Dictionary<CraHandle, CraHandle> StateToLayer;
         Dictionary<CraHandle, string> StateNames;
         Dictionary<CraHandle, string> ValueNames;
+        Dictionary<CraHandle, CraFormatMachineValue> ValueFormatting;
 
         // Since triggers are set and reset within the SAME frame,
         // there's no other way for the Monitor to display their action.
@@ -34,6 +35,7 @@ public unsafe partial class CraMain
             StateToLayer = new Dictionary<CraHandle, CraHandle>();
             StateNames = new Dictionary<CraHandle, string>();
             ValueNames = new Dictionary<CraHandle, string>();
+            ValueFormatting = new Dictionary<CraHandle, CraFormatMachineValue>();
 
             ChangedValues = new Queue<CraHandle>();
 #endif
@@ -538,6 +540,7 @@ public unsafe partial class CraMain
 #if UNITY_EDITOR
         public string GetStateName(CraHandle state)
         {
+            Debug.Assert(state.IsValid());
             if (StateNames.TryGetValue(state, out string name))
             {
                 return name;
@@ -546,6 +549,7 @@ public unsafe partial class CraMain
         }
         public void SetStateName(CraHandle state, string name)
         {
+            Debug.Assert(state.IsValid());
             if (StateNames.ContainsKey(state))
             {
                 StateNames[state] = name;
@@ -557,6 +561,7 @@ public unsafe partial class CraMain
         }
         public string GetMachineValueName(CraHandle input)
         {
+            Debug.Assert(input.IsValid());
             if (ValueNames.TryGetValue(input, out string name))
             {
                 return name;
@@ -565,6 +570,7 @@ public unsafe partial class CraMain
         }
         public void SetMachineValueName(CraHandle machineValue, string name)
         {
+            Debug.Assert(machineValue.IsValid());
             if (ValueNames.ContainsKey(machineValue))
             {
                 ValueNames[machineValue] = name;
@@ -573,6 +579,43 @@ public unsafe partial class CraMain
             {
                 ValueNames.Add(machineValue, name);
             }
+        }
+        public void SetMachineValueFormatting(CraHandle machineValue, CraFormatMachineValue function)
+        {
+            if (function == null)
+            {
+                return;
+            }
+            Debug.Assert(machineValue.IsValid());
+            if (ValueFormatting.ContainsKey(machineValue))
+            {
+                ValueFormatting[machineValue] = function;
+            }
+            else
+            {
+                ValueFormatting.Add(machineValue, function);
+            }
+        }
+        public string GetMachineValueString(CraHandle machineValue)
+        {
+            Debug.Assert(machineValue.IsValid());
+            if (ValueFormatting.TryGetValue(machineValue, out CraFormatMachineValue function))
+            {
+                return function(new CraMachineValue(machineValue));
+            }
+            var value = MachineValues.Get(machineValue.Index);
+            switch (value.Value.Type)
+            {
+                case CraValueType.Int:
+                    return value.Value.ValueInt.ToString();
+                case CraValueType.Float:
+                    return value.Value.ValueFloat.ToString();
+                case CraValueType.Bool:
+                    return value.Value.ValueBool.ToString();
+                case CraValueType.Trigger:
+                    return $"{value.Value.ValueBool} ({value.LifeTime:n2} / {value.MaxLifeTime:n2})";
+            }
+            return "UNKNOWN VALUE TYPE";
         }
         public unsafe void UpdateStatistics()
         {
