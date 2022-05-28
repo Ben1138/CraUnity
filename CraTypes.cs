@@ -138,13 +138,13 @@ public enum CraConditionType
     Less,
     GreaterOrEqual,
     LessOrEqual,
-    AnyFlag,           // Value must contain at least one of the compare flags
-    AllFlags,          // Value must contain all of the compare flags
+    AnyFlag,             // Value must contain at least one of the compare flags
+    AllFlags,            // Value must contain all of the compare flags
     Trigger,
 
     // State conditions
-    TimeMin,        // State Time must be greater than Min
-    TimeMax,        // State Time must be smaller than Max
+    TimeMin,             // State Time must be greater than Min
+    TimeMax,             // State Time must be smaller than Max
     IsFinished
 }
 
@@ -390,7 +390,7 @@ public class CraStatistics
 
 public struct CraBufferSettings
 {
-    public int Capacity;
+    public int   Capacity;
     public float GrowFactor;
 }
 
