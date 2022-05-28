@@ -199,8 +199,8 @@ public struct CraCondition
 [StructLayout(LayoutKind.Sequential)]
 public struct CraConditionOr
 {
-    public float CheckTimeMin;    // Before this state time, conditions is always false.
-    public float CheckTimeMax;    // After this state time, condition is always false.     Default value of 0f is interpreted as State Duration
+    public float CheckTimeMin;    // Before this state time, condition is always false.
+    public float CheckTimeMax;    // After  this state time, condition is always false. Default value of 0f is interpreted as State Duration
 
     public CraCondition And0;
     public CraCondition And1;

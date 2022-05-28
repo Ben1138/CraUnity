@@ -880,7 +880,8 @@ public unsafe partial class CraMain
         [ReadOnly]
         public NativeArray<CraStateData> States;
 
-        [ReadOnly]
+        // Read + Write
+        [NativeDisableParallelForRestriction]
         public NativeArray<CraTransitionData> Transitions;
 
 
@@ -914,22 +915,46 @@ public unsafe partial class CraMain
 
                 for (int ti = 0; ti < state.TransitionsCount; ++ti)
                 {
+                    bool bDebugPrint = false;// stateIdx == 123 && ti == 0;
+                    
                     int tranIdx = state.Transitions[ti];
                     var tran = Transitions[tranIdx];
                     bool transit =
-                        CheckCondition(ref tran.Or0, state) ||
-                        CheckCondition(ref tran.Or1, state) ||
-                        CheckCondition(ref tran.Or2, state) ||
-                        CheckCondition(ref tran.Or3, state) ||
-                        CheckCondition(ref tran.Or4, state) ||
-                        CheckCondition(ref tran.Or5, state) ||
-                        CheckCondition(ref tran.Or6, state) ||
-                        CheckCondition(ref tran.Or7, state) ||
-                        CheckCondition(ref tran.Or8, state) ||
-                        CheckCondition(ref tran.Or9, state);
+                        CheckCondition(ref tran.Or0, state, bDebugPrint) ||
+                        CheckCondition(ref tran.Or1, state, bDebugPrint) ||
+                        CheckCondition(ref tran.Or2, state, bDebugPrint) ||
+                        CheckCondition(ref tran.Or3, state, bDebugPrint) ||
+                        CheckCondition(ref tran.Or4, state, bDebugPrint) ||
+                        CheckCondition(ref tran.Or5, state, bDebugPrint) ||
+                        CheckCondition(ref tran.Or6, state, bDebugPrint) ||
+                        CheckCondition(ref tran.Or7, state, bDebugPrint) ||
+                        CheckCondition(ref tran.Or8, state, bDebugPrint) ||
+                        CheckCondition(ref tran.Or9, state, bDebugPrint);
+
+                    // ConditionMet might have been set to true at this point
+                    Transitions[tranIdx] = tran;
 
                     if (transit)
                     {
+                        // Reset all Transition Conditions
+                        for (int nti = 0; nti < state.TransitionsCount; nti++)
+                        {
+                            int newTranIdx = state.Transitions[nti];
+                            var newTran = Transitions[newTranIdx];
+
+                            CraConditionOr* ors = &newTran.Or0;
+                            for (int oi = 0; oi < 10; ++oi)
+                            {
+                                CraCondition* ands = &ors[oi].And0;
+                                for (int ai = 0; ai < 10; ++ai)
+                                {
+                                    ands[ai].ConditionMet = false;
+                                }
+                            }
+
+                            Transitions[newTranIdx] = newTran;
+                        }
+
                         machine.ActiveState[li] = tran.Target.Handle.Index;
                         machine.Transitioning[li] = true;
 
@@ -955,23 +980,6 @@ public unsafe partial class CraMain
                                 CraPlayerData pd = Players[newState.Player.Index];
                                 pd.Playback = Players[syncState.Player.Index].Playback;
                                 Players[newState.Player.Index] = pd;
-                            }
-
-                            // Reset all Transition Conditions
-                            for (int nti = 0; nti < newState.TransitionsCount; nti++)
-                            {
-                                int newTranIdx = newState.Transitions[nti];
-                                var newTran = Transitions[newTranIdx];
-
-                                CraConditionOr* ors = &newTran.Or0;
-                                for (int oi = 0; oi < 10; ++oi)
-                                {
-                                    CraCondition* ands = &ors[oi].And0;
-                                    for (int ai = 0; ai < 10; ++ai)
-                                    {
-                                        ands[ai].ConditionMet = false;
-                                    }
-                                }
                             }
 
                             CraPlaybackManager.Player_SetPlay(Players, newState.Player, CraPlayMode.Play, tran.TransitionTime);
@@ -1015,53 +1023,105 @@ public unsafe partial class CraMain
                 or.And9.Type != CraConditionType.None;
         }
 
-        bool CheckCondition(ref CraConditionOr or, in CraStateData state)
+        bool CheckCondition(ref CraConditionOr or, in CraStateData state, bool bDebugPrint = false)
         {
-            float checkEndTime = 999999f;
+            float checkTimeMin = or.CheckTimeMin;
+            float checkTimeMax = 999999f;
             if (or.CheckTimeMax > 0f)
             {
-                checkEndTime = or.CheckTimeMax;
+                checkTimeMax = or.CheckTimeMax;
             }
 
-            CraPlayerData player = Players[state.Player.Index];
-            return
-                HasAtLeastOneCondition(or) &&
-                CheckCondition(ref or.And0, state) &&
-                CheckCondition(ref or.And1, state) &&
-                CheckCondition(ref or.And2, state) &&
-                CheckCondition(ref or.And3, state) &&
-                CheckCondition(ref or.And4, state) &&
-                CheckCondition(ref or.And5, state) &&
-                CheckCondition(ref or.And6, state) &&
-                CheckCondition(ref or.And7, state) &&
-                CheckCondition(ref or.And8, state) &&
-                CheckCondition(ref or.And9, state) &&
+            bool conditionMet =
 
-                player.Playback <= checkEndTime;
+                // NOTE: To enable time check boundaries again, just uncomment these lines.
+                // I disabled them because ATTACK transitions become kind of unhitable otherwise...
+
+                //player.Playback >= checkTimeMin &&
+                //player.Playback <= checkTimeMax &&
+
+                HasAtLeastOneCondition(or);
+
+            if (conditionMet)
+            {
+                // Execute all conditions checks, regardless whether a previous
+                // condition was already met or not. We do this to account for Input (button, etc.) checks,
+                // that might had happend BEFORE any CraConditionType.TimeMin condition!
+                conditionMet = CheckCondition(ref or.And0, state, 0, bDebugPrint) && conditionMet;
+                conditionMet = CheckCondition(ref or.And1, state, 1, bDebugPrint) && conditionMet;
+                conditionMet = CheckCondition(ref or.And2, state, 2, bDebugPrint) && conditionMet;
+                conditionMet = CheckCondition(ref or.And3, state, 3, bDebugPrint) && conditionMet;
+                conditionMet = CheckCondition(ref or.And4, state, 4, bDebugPrint) && conditionMet;
+                conditionMet = CheckCondition(ref or.And5, state, 5, bDebugPrint) && conditionMet;
+                conditionMet = CheckCondition(ref or.And6, state, 6, bDebugPrint) && conditionMet;
+                conditionMet = CheckCondition(ref or.And7, state, 7, bDebugPrint) && conditionMet;
+                conditionMet = CheckCondition(ref or.And8, state, 8, bDebugPrint) && conditionMet;
+                conditionMet = CheckCondition(ref or.And9, state, 9, bDebugPrint) && conditionMet;
+
+                //if (bDebugPrint)
+                //{
+                //    Debug.Log($"conditionMet: {conditionMet}");
+                //}
+            }
+
+            return conditionMet;
         }
 
-        bool CheckCondition(ref CraCondition con, in CraStateData state)
+        bool CheckCondition(ref CraCondition con, in CraStateData state, int debugAndIdx, bool bDebugPrint = false)
         {
-            if (con.ConditionMet || con.Type == CraConditionType.None)
+            bool conditionMet = con.ConditionMet;
+            if (conditionMet)
+            {
+                if (bDebugPrint)
+                {
+                    Debug.Log($"And Condition {debugAndIdx} already met");
+                }
+                return true;
+            }
+            if (con.Type == CraConditionType.None)
             {
                 return true;
             }
             if (con.Type == CraConditionType.IsFinished)
             {
-                return state.Player.IsValid() && CraPlaybackManager.Player_IsFinished(Players, state.Player);
+                bool bFinished = state.Player.IsValid() && CraPlaybackManager.Player_IsFinished(Players, state.Player);
+                if (bDebugPrint)
+                {
+                    Debug.Log($"bFinished: {bFinished}");
+                }
+                return bFinished;
             }
             if (state.Player.IsValid())
             {
                 var player = Players[state.Player.Index];
-                if ((con.Type == CraConditionType.TimeMin && player.Playback >= con.Compare.ValueFloat) ||
-                    (con.Type == CraConditionType.TimeMax && player.Playback <= con.Compare.ValueFloat))
+                switch (con.Type)
                 {
-                    return true;
+                    case CraConditionType.TimeMin:
+                    {
+                        conditionMet = player.Playback >= con.Compare.ValueFloat;
+                        if (bDebugPrint)
+                        {
+                            Debug.Log($"{player.Playback} >= {con.Compare.ValueFloat}");
+                        }
+                        return conditionMet;
+                    }
+                    case CraConditionType.TimeMax:
+                    {
+                        conditionMet = player.Playback <= con.Compare.ValueFloat;
+                        if (bDebugPrint)
+                        {
+                            Debug.Log($"{player.Playback} <= {con.Compare.ValueFloat}");
+                        }
+                        return conditionMet;
+                    }
                 }
             }
             if (!con.Input.IsValid())
             {
-                // Is this right?
+                if (bDebugPrint)
+                {
+                    Debug.Log("Input is invalid!");
+                }
                 return false;
             }
 
@@ -1069,58 +1129,84 @@ public unsafe partial class CraMain
             int valueInt = con.CompareToAbsolute ? Mathf.Abs(input.ValueInt) : input.ValueInt;
             float valueFloat = con.CompareToAbsolute ? Mathf.Abs(input.ValueFloat) : input.ValueFloat;
 
-            bool conditionMet = false;
-            if (con.Type == CraConditionType.Equal && con.Input.IsValid())
+            switch (con.Type)
             {
-                conditionMet =
-                    (input.Type == CraValueType.Int && valueInt == con.Compare.ValueInt) ||
-                    (input.Type == CraValueType.Float && valueFloat == con.Compare.ValueFloat) ||
-                    (input.Type == CraValueType.Bool && input.ValueBool == con.Compare.ValueBool);
-            }
-            else if (con.Type == CraConditionType.Greater && con.Input.IsValid())
-            {
-                conditionMet =
-                    (input.Type == CraValueType.Int && valueInt > con.Compare.ValueInt) ||
-                    (input.Type == CraValueType.Float && valueFloat > con.Compare.ValueFloat);
-            }
-            else if (con.Type == CraConditionType.GreaterOrEqual && con.Input.IsValid())
-            {
-                conditionMet =
-                    (input.Type == CraValueType.Int && valueInt >= con.Compare.ValueInt) ||
-                    (input.Type == CraValueType.Float && valueFloat >= con.Compare.ValueFloat);
-            }
-            else if (con.Type == CraConditionType.Less && con.Input.IsValid())
-            {
-                conditionMet =
-                    (input.Type == CraValueType.Int && valueInt < con.Compare.ValueInt) ||
-                    (input.Type == CraValueType.Float && valueFloat < con.Compare.ValueFloat);
-            }
-            else if (con.Type == CraConditionType.LessOrEqual && con.Input.IsValid())
-            {
-                conditionMet =
-                    (input.Type == CraValueType.Int && valueInt <= con.Compare.ValueInt) ||
-                    (input.Type == CraValueType.Float && valueFloat <= con.Compare.ValueFloat);
-            }
-            else if (con.Type == CraConditionType.AnyFlag && con.Input.IsValid())
-            {
-                conditionMet =
-                    (input.Type == CraValueType.Int && (valueInt & con.Compare.ValueInt) != 0);
-            }
-            else if (con.Type == CraConditionType.AllFlags && con.Input.IsValid())
-            {
-                conditionMet =
-                    (input.Type == CraValueType.Int && (valueInt & con.Compare.ValueInt) == con.Compare.ValueInt);
-            }
-            else if (con.Type == CraConditionType.Trigger && con.Input.IsValid())
-            {
-                conditionMet = input.Type == CraValueType.Trigger && input.ValueBool;
-                if (conditionMet)
+                case CraConditionType.Equal:
                 {
-                    //Debug.Log($"Triggered by: {con.Input.GetName()}");
-                    CraValue v = MachineValues[con.Input.Handle.Index];
-                    v.Consumed++;
-                    MachineValues[con.Input.Handle.Index] = v;
+                    conditionMet =
+                        (input.Type == CraValueType.Int && valueInt == con.Compare.ValueInt) ||
+                        (input.Type == CraValueType.Float && valueFloat == con.Compare.ValueFloat) ||
+                        (input.Type == CraValueType.Bool && input.ValueBool == con.Compare.ValueBool);
+                    break;
                 }
+
+                case CraConditionType.Greater:
+                {
+                    conditionMet =
+                        (input.Type == CraValueType.Int && valueInt > con.Compare.ValueInt) ||
+                        (input.Type == CraValueType.Float && valueFloat > con.Compare.ValueFloat);
+                    break;
+                }
+                case CraConditionType.GreaterOrEqual:
+                {
+                    conditionMet =
+                        (input.Type == CraValueType.Int && valueInt >= con.Compare.ValueInt) ||
+                        (input.Type == CraValueType.Float && valueFloat >= con.Compare.ValueFloat);
+                    break;
+                }
+                case CraConditionType.Less:
+                {
+                    conditionMet =
+                        (input.Type == CraValueType.Int && valueInt < con.Compare.ValueInt) ||
+                        (input.Type == CraValueType.Float && valueFloat < con.Compare.ValueFloat);
+                    break;
+                }
+                case CraConditionType.LessOrEqual:
+                {
+                    conditionMet =
+                        (input.Type == CraValueType.Int && valueInt <= con.Compare.ValueInt) ||
+                        (input.Type == CraValueType.Float && valueFloat <= con.Compare.ValueFloat);
+                    break;
+                }
+                case CraConditionType.AnyFlag:
+                {
+                    conditionMet =
+                        (input.Type == CraValueType.Int && (valueInt & con.Compare.ValueInt) != 0);
+                    break;
+                }
+                case CraConditionType.AllFlags:
+                {
+                    conditionMet =
+                        (input.Type == CraValueType.Int && (valueInt & con.Compare.ValueInt) == con.Compare.ValueInt);
+                    if (bDebugPrint)
+                    {
+                        Debug.Log($"[{debugAndIdx}] Input: {con.Input.Handle.Index} {input.Type}  valueInt: {valueInt}  con.Compare.ValueInt: {con.Compare.ValueInt} - {conditionMet}");
+                    }
+                    break;
+                }
+                case CraConditionType.Trigger:
+                {
+                    conditionMet = input.Type == CraValueType.Trigger && input.ValueBool;
+                    if (conditionMet)
+                    {
+                        //Debug.Log($"Triggered by: {con.Input.GetName()}");
+                        CraValue v = MachineValues[con.Input.Handle.Index];
+                        v.Consumed++;
+                        MachineValues[con.Input.Handle.Index] = v;
+                    }
+                    break;
+                }
+
+                default:
+                {
+                    Debug.LogError($"Unhandled Condition Type: {con.Type}");
+                    break;
+                }
+            }
+
+            if (bDebugPrint && conditionMet && debugAndIdx == 2)
+            {
+                Debug.Log($"[{debugAndIdx}] = True");
             }
 
             con.ConditionMet = conditionMet;
