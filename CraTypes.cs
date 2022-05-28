@@ -413,7 +413,7 @@ public struct CraSettings
     public CraBufferSettings States;
     public CraBufferSettings Transitions;
 
-    public const int MaxTransitions = 20;
+    public const int MaxTransitions = 32;
     public const int MaxLayers = 2;
     public const int MaxMachineValues = 128;
 

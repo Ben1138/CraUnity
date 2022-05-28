@@ -385,9 +385,9 @@ public unsafe partial class CraMain
 
             var state = States.Get(stateHandle.Index);
             Debug.Assert(state.WriteEnterCount >= 0);
-            if (state.WriteEnterCount >= 40)
+            if (state.WriteEnterCount >= 64)
             {
-                Debug.LogError("Maximum of 40 write outputs reached!");
+                Debug.LogError("Maximum of 64 write outputs reached!");
                 return;
             }
 
@@ -420,9 +420,9 @@ public unsafe partial class CraMain
 
             var state = States.Get(stateHandle.Index);
             Debug.Assert(state.WriteLeaveCount >= 0);
-            if (state.WriteLeaveCount >= 40)
+            if (state.WriteLeaveCount >= 64)
             {
-                Debug.LogError("Maximum of 40 write outputs reached!");
+                Debug.LogError("Maximum of 64 write outputs reached!");
                 return;
             }
 
@@ -819,6 +819,30 @@ public unsafe partial class CraMain
         public CraWrite WriteValueEnter37;
         public CraWrite WriteValueEnter38;
         public CraWrite WriteValueEnter39;
+        public CraWrite WriteValueEnter40;
+        public CraWrite WriteValueEnter41;
+        public CraWrite WriteValueEnter42;
+        public CraWrite WriteValueEnter43;
+        public CraWrite WriteValueEnter44;
+        public CraWrite WriteValueEnter45;
+        public CraWrite WriteValueEnter46;
+        public CraWrite WriteValueEnter47;
+        public CraWrite WriteValueEnter48;
+        public CraWrite WriteValueEnter49;
+        public CraWrite WriteValueEnter50;
+        public CraWrite WriteValueEnter51;
+        public CraWrite WriteValueEnter52;
+        public CraWrite WriteValueEnter53;
+        public CraWrite WriteValueEnter54;
+        public CraWrite WriteValueEnter55;
+        public CraWrite WriteValueEnter56;
+        public CraWrite WriteValueEnter57;
+        public CraWrite WriteValueEnter58;
+        public CraWrite WriteValueEnter59;
+        public CraWrite WriteValueEnter60;
+        public CraWrite WriteValueEnter61;
+        public CraWrite WriteValueEnter62;
+        public CraWrite WriteValueEnter63;
 
         public int WriteLeaveCount;
         public CraWrite WriteValueLeave0;
@@ -861,6 +885,30 @@ public unsafe partial class CraMain
         public CraWrite WriteValueLeave37;
         public CraWrite WriteValueLeave38;
         public CraWrite WriteValueLeave39;
+        public CraWrite WriteValueLeave40;
+        public CraWrite WriteValueLeave41;
+        public CraWrite WriteValueLeave42;
+        public CraWrite WriteValueLeave43;
+        public CraWrite WriteValueLeave44;
+        public CraWrite WriteValueLeave45;
+        public CraWrite WriteValueLeave46;
+        public CraWrite WriteValueLeave47;
+        public CraWrite WriteValueLeave48;
+        public CraWrite WriteValueLeave49;
+        public CraWrite WriteValueLeave50;
+        public CraWrite WriteValueLeave51;
+        public CraWrite WriteValueLeave52;
+        public CraWrite WriteValueLeave53;
+        public CraWrite WriteValueLeave54;
+        public CraWrite WriteValueLeave55;
+        public CraWrite WriteValueLeave56;
+        public CraWrite WriteValueLeave57;
+        public CraWrite WriteValueLeave58;
+        public CraWrite WriteValueLeave59;
+        public CraWrite WriteValueLeave60;
+        public CraWrite WriteValueLeave61;
+        public CraWrite WriteValueLeave62;
+        public CraWrite WriteValueLeave63;
     }
 
     [BurstCompile]
@@ -877,12 +925,12 @@ public unsafe partial class CraMain
         [NativeDisableParallelForRestriction]
         public NativeArray<CraValue> MachineValues;
 
-        [ReadOnly]
-        public NativeArray<CraStateData> States;
-
         // Read + Write
         [NativeDisableParallelForRestriction]
         public NativeArray<CraTransitionData> Transitions;
+
+        [ReadOnly]
+        public NativeArray<CraStateData> States;
 
 
         public void Execute(int index)
