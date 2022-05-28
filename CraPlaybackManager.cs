@@ -36,6 +36,10 @@ public partial class CraMain
         // For each player, provide a list of bone indices into BoneData & Bones
         List<List<int>> PlayerAssignedBones = new List<List<int>>();
 
+#if UNITY_EDITOR
+        Dictionary<CraHandle, string> ClipNames = new Dictionary<CraHandle, string>();
+#endif
+
 
         internal CraPlaybackManager()
         {
@@ -532,6 +536,25 @@ public partial class CraMain
             Instance.Statistics.Mapping.MaxBytes = bytes;
             Instance.Statistics.Mapping.CurrentElements = elems;
             Instance.Statistics.Mapping.CurrentBytes = bytes;
+        }
+
+        public void SetClipName(CraHandle clipHandle, string name)
+        {
+            if (ClipNames.ContainsKey(clipHandle))
+            {
+                ClipNames[clipHandle] = name;
+                return;
+            }
+            ClipNames.Add(clipHandle, name);
+        }
+
+        public string GetClipName(CraHandle clipHandle)
+        {
+            if (ClipNames.TryGetValue(clipHandle, out string name))
+            {
+                return name;
+            }
+            return null;
         }
 #endif
     }
