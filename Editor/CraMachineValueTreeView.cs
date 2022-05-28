@@ -73,7 +73,7 @@ public class CraMachineValueTreeView : TreeView
             CraMachineValueTreeItem valueItem = new CraMachineValueTreeItem
             {
                 id = idCounter++,
-                displayName = machineValue.GetName(),
+                displayName = $"[{machineValue.Handle.Index}] {machineValue.GetName()}",
                 Value = machineValue
             };
 

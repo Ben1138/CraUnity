@@ -136,6 +136,7 @@ public class CraMachineStatesTreeView : TreeView
                         id = idCounter++,
                         displayName = $"Transition {ti}",
                         Value = data.Target.IsValid() ? $"[{data.Target.Handle.Index}] {data.Target.GetName()}" : "NO TARGET",
+                        TransitionIndex = ti,
                     };
 
                     ExpandRecursiveItems.Add(transitionItem.id);
@@ -145,7 +146,6 @@ public class CraMachineStatesTreeView : TreeView
                     for (int oi = 0; oi < 10; ++oi)
                     {
                         List<CraStateMachineTreeItem> andItems = new List<CraStateMachineTreeItem>();
-
                         CraCondition* ands = &ors[oi].And0;
                         for (int ai = 0; ai < 10; ++ai)
                         {
@@ -214,8 +214,11 @@ public class CraMachineStatesTreeView : TreeView
                             {
                                 id = idCounter++,
                                 displayName = $"And {ai}",
+                                State = state,
                                 Value = conditionStr,
-                                Condition = and
+                                TransitionIndex = ti,
+                                OrIndex = oi,
+                                AndIndex = ai
                             };
 
                             andItems.Add(andItem);
@@ -227,8 +230,28 @@ public class CraMachineStatesTreeView : TreeView
                             {
                                 id = idCounter++,
                                 displayName = $"Or {oi}",
-                                Value = $"{andItems.Count} condition(s)"
+                                State = state,
+                                Value = $"{andItems.Count} condition(s)",
+                                TransitionIndex = ti,
+                                OrIndex = oi,
                             };
+
+                            if (ors[oi].CheckTimeMin != 0f || ors[oi].CheckTimeMax != 0f)
+                            {
+                                orItem.AddChild(new CraStateMachineTreeItem
+                                {
+                                    id = idCounter++,
+                                    displayName = "Check Min",
+                                    Value = ors[oi].CheckTimeMin.ToString()
+                                });
+
+                                orItem.AddChild(new CraStateMachineTreeItem
+                                {
+                                    id = idCounter++,
+                                    displayName = "Check Max",
+                                    Value = ors[oi].CheckTimeMax.ToString()
+                                });
+                            }
 
                             for (int aii = 0; aii < andItems.Count; ++aii)
                             {
@@ -259,16 +282,24 @@ public class CraMachineStatesTreeView : TreeView
         }
     }
 
-    protected override void RowGUI(RowGUIArgs args)
+    protected unsafe override void RowGUI(RowGUIArgs args)
     {
         var item = args.item as CraStateMachineTreeItem;
         Debug.Assert(item != null);
 
+        bool isActive = item.Layer.GetActiveState() == item.State;
+        if (!isActive && item.State.IsValid() && item.TransitionIndex >=0 && item.OrIndex >= 0 && item.AndIndex >= 0)
+        {
+            CraTransition[]    transitions  = item.State.GetTransitions();
+            CraTransitionData  data         = transitions[item.TransitionIndex].GetData();
+            CraConditionOr*    ors          = &data.Or0;
+            CraCondition*      ands         = &ors[item.OrIndex].And0;
+
+            isActive = ands[item.AndIndex].ConditionMet;
+        }
+
         Color tmp1 = GUI.backgroundColor;
         Color tmp2 = GUI.contentColor;
-        bool isActive =
-            (item.State.IsValid() && item.Layer.GetActiveState() == item.State) ||
-            (item.Condition.Type != CraConditionType.None && item.Condition.ConditionMet);
 
         if (isActive)
         {
@@ -397,7 +428,9 @@ class CraStateMachineTreeItem : TreeViewItem
     public CraStateMachineTreeItemType Type;
     public CraLayer Layer;
     public CraState State;
-    public CraCondition Condition;
+    public int TransitionIndex = -1;
+    public int OrIndex = -1;
+    public int AndIndex = -1;
 
     public string Value;
 }
