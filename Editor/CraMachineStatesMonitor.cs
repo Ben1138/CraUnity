@@ -4,20 +4,19 @@ using UnityEngine;
 using UnityEditor;
 using UnityEditor.IMGUI.Controls;
 
-public class CraStateMachineMonitor : EditorWindow
+public class CraMachineStatesMonitor : EditorWindow
 {
-    [MenuItem("Cra/State Machine Monitor")]
+    [MenuItem("Cra/Machine States")]
     public static void OpenRuntimeMonitor()
     {
-        CraStateMachineMonitor window = GetWindow<CraStateMachineMonitor>();
+        CraMachineStatesMonitor window = CreateInstance<CraMachineStatesMonitor>();
         window.Show();
     }
 
     GameObject MonitoredObject;
     CraStateMachine? Monitored;
 
-    CraStateMachineTreeView StateMachineTree;
-    CraMachineValueTreeView MachineValueTreeView;
+    CraMachineStatesTreeView StateMachineTree;
 
     void Update()
     {
@@ -65,8 +64,7 @@ public class CraStateMachineMonitor : EditorWindow
                 return;
             }
 
-            StateMachineTree = CraStateMachineTreeView.Create(Monitored.Value);
-            MachineValueTreeView = CraMachineValueTreeView.Create(Monitored.Value.GetMachineValues());
+            StateMachineTree = CraMachineStatesTreeView.Create(Monitored.Value);
         }
 
         if (!Monitored.HasValue)
@@ -75,14 +73,9 @@ public class CraStateMachineMonitor : EditorWindow
             return;
         }
 
-        float half = position.width / 2f;
         if (StateMachineTree != null)
         {
-            StateMachineTree.OnGUI(new Rect(0, 0, half, position.height));
-        }
-        if (MachineValueTreeView != null)
-        {
-            MachineValueTreeView.OnGUI(new Rect(half, 0, half, position.height));
+            StateMachineTree.OnGUI(new Rect(0f, 0f, position.width, position.height));
         }
     }
 

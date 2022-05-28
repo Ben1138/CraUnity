@@ -6,7 +6,7 @@ using UnityEditor.IMGUI.Controls;
 using UnityEditor;
 
 
-public class CraStateMachineTreeView : TreeView
+public class CraMachineStatesTreeView : TreeView
 {
     CraStateMachine Machine = CraStateMachine.None;
 
@@ -29,7 +29,7 @@ public class CraStateMachineTreeView : TreeView
     HashSet<int> ExpandRecursiveItems = new HashSet<int>();
 
 
-    private CraStateMachineTreeView(CraStateMachine machine, TreeViewState state, MultiColumnHeader multicolumnHeader) : base(state, multicolumnHeader)
+    private CraMachineStatesTreeView(CraStateMachine machine, TreeViewState state, MultiColumnHeader multicolumnHeader) : base(state, multicolumnHeader)
     {
         Machine = machine;
         showAlternatingRowBackgrounds = true;
@@ -37,7 +37,7 @@ public class CraStateMachineTreeView : TreeView
         Reload();
     }
 
-    public static CraStateMachineTreeView Create(CraStateMachine machine)
+    public static CraMachineStatesTreeView Create(CraStateMachine machine)
     {
         Debug.Assert(machine.IsValid());
         MultiColumnHeaderState headerState = new MultiColumnHeaderState(new MultiColumnHeaderState.Column[] 
@@ -59,7 +59,7 @@ public class CraStateMachineTreeView : TreeView
         var header = new MultiColumnHeader(headerState);
         header.ResizeToFit();
 
-        var treeView = new CraStateMachineTreeView(machine, new TreeViewState(), header);
+        var treeView = new CraMachineStatesTreeView(machine, new TreeViewState(), header);
         treeView.rowHeight = 30f;
         return treeView;
     }
@@ -100,13 +100,32 @@ public class CraStateMachineTreeView : TreeView
                 layerItem.AddChild(stateItem);
 
                 CraState syncState = state.GetSyncState();
-                CraStateMachineTreeItem syncStateItem = new CraStateMachineTreeItem
+                stateItem.AddChild(new CraStateMachineTreeItem
                 {
                     id = idCounter++,
                     displayName = "Sync To",
                     Value = syncState.IsValid() ? $"[{syncState.Handle.Index}] {syncState.GetName()}" : "NO STATE"
-                };
-                stateItem.AddChild(syncStateItem);
+                });
+
+                CraPlayer player = state.GetPlayer();
+                if (player.IsValid())
+                {
+                    stateItem.AddChild(new CraStateMachineTreeItem
+                    {
+                        id = idCounter++,
+                        displayName = "Play Speed",
+                        Type = CraStateMachineTreeItemType.PlayerSpeed,
+                        State = state
+                    });
+
+                    CraClip clip = player.GetClip();
+                    stateItem.AddChild(new CraStateMachineTreeItem
+                    {
+                        id = idCounter++,
+                        displayName = "Clip",
+                        Value = clip.IsValid() ? $"{clip.GetName()}" : "NONE"
+                    });
+                }
 
                 CraTransition[] transitions = state.GetTransitions();
                 for (int ti = 0; ti < transitions.Length; ++ti)
@@ -343,6 +362,21 @@ public class CraStateMachineTreeView : TreeView
                     break;
                 }
 
+                case CraStateMachineTreeItemType.PlayerSpeed:
+                {
+                    CraPlayer player = item.State.GetPlayer();
+                    if (player.IsValid())
+                    {
+                        float speedIn = player.GetPlaybackSpeed();
+                        float speedOut = EditorGUI.Slider(cellRect, GUIContent.none, speedIn, 0f, 10f);
+                        if (Mathf.Abs(speedOut - speedIn) > float.Epsilon)
+                        {
+                            player.SetPlaybackSpeed(speedOut);
+                        }
+                    }
+                    break;
+                }
+
                 default:
                 {
                     EditorGUI.LabelField(cellRect, item.Value);
@@ -355,7 +389,7 @@ public class CraStateMachineTreeView : TreeView
 
 enum CraStateMachineTreeItemType
 {
-    None, State
+    None, State, PlayerSpeed
 }
 
 class CraStateMachineTreeItem : TreeViewItem

@@ -470,6 +470,24 @@ public struct CraClip
     {
         return lhs.Handle != rhs.Handle;
     }
+
+#if UNITY_EDITOR
+    public void SetName(string name)
+    {
+        Debug.Assert(IsValid());
+        CraMain.Instance.Players.SetClipName(Handle, name);
+    }
+    public string GetName()
+    {
+        Debug.Assert(IsValid());
+        string name = CraMain.Instance.Players.GetClipName(Handle);
+        if (string.IsNullOrEmpty(name))
+        {
+            name = $"State {Handle.Index}";
+        }
+        return name;
+    }
+#endif
 }
 
 public struct CraPlayer
